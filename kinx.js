@@ -167,10 +167,11 @@ function setOptions(uri) {
 
 function compile(uri, src) {
   let [filename, fileopt, diropt] = setOptions(uri);
-  const buf = childProcess.execSync('kinx.exe -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { input: src + '\n__END__' });
+  const buf = childProcess.execSync('kinx.exe -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 10000, input: src + '\n__END__' });
   const msg = buf.toString();
   if (msg.length == 0) {
     logMessage("No error");
+    return;
   }
   diagnostics.length = 0;
   symbolmap = {};

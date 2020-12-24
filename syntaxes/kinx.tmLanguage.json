@@ -58,7 +58,7 @@
 					"match": "\\bnew\\b"
 				},
 				{
-					"name": "entity.other.attribute-name.class.css",
+					"name": "entity.name.class",
 					"match": "\\b[_A-Z][_a-zA-Z0-9]*\\b"
 				},
 				{
@@ -249,11 +249,11 @@
 		"functions": {
 			"patterns": [
 				{
-					"name": "keyword.other.unit",
+					"name": "entity.name.function",
 					"match": "([_a-z][_a-zA-Z0-9]*|\\.[_a-z][_a-z\\.A-Z0-9]*)\\s*(?=\\()"
 				},
 				{
-					"name": "keyword.other.unit",
+					"name": "entity.name.function",
 					"match": "operator..?\\s*(?=\\()"
 				}
 			]
