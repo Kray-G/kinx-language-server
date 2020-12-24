@@ -108,7 +108,6 @@ function usingCheck(filename, srcbuf, errmsg) {
   const file = filename.replace(/\.[^/.]+$/, "");
   for (let i = 0, l = srcbuf.length; i < l; ++i) {
     let srcline = srcbuf[i];
-    logMessage("using check; " + i + ": " + srcline);
     let re = new RegExp("using\\s+" + file + '\\s*;');
     let result = re.exec(srcline);
     if (result != null && result.index >= 0) {
@@ -265,6 +264,7 @@ function compile(uri, src) {
   const msgs = msg.split(/\r?\n/);
   for (let i = 0, l = msgs.length; i < l; ++i) {
     let errmsg = msgs[i];
+    // logMessage(errmsg);
     if (errmsg.length > 0 && errmsg.charAt(0) == '#') {
       checkLocation(filename, errmsg, srcbuf);
       continue;
