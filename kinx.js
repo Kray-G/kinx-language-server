@@ -269,9 +269,9 @@ function compile(uri, src) {
       checkLocation(filename, errmsg, srcbuf);
       continue;
     }
-    let result = errmsg.match(/Symbol\(([^\)]+)\).+?([^\s]+):(\d+)/);
+    let result = errmsg.match(/Symbol\(([^\)]+)\).+?<([^>]+)>:(\d+)/);
     if (result == null) {
-      result = errmsg.match(/.+?([^\s]+):(\d+)/);
+      result = errmsg.match(/.+?<([^>]+)>:(\d+)/);
       if (result != null) {
         let file = result[1];
         if (file === filename) {
