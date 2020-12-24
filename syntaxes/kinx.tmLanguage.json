@@ -1,0 +1,270 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"version": "0.0.1",
+	"name": "kinx",
+	"scopeName": "source.kinx",
+	"fileTypes": [
+		".kx"
+	],
+	"uuid": "00000000-0000-0000-0000-000000000002",
+	"patterns": [
+		{
+			"include": "#pattern-all"
+		}
+	],
+	"repository": {
+		"pattern-all": {
+			"patterns": [
+				{
+					"include": "#comment"
+				},
+				{
+					"include": "#controls"
+				},
+				{
+					"include": "#functions"
+				},
+				{
+					"include": "#punctuations"
+				},
+				{
+					"include": "#keywords"
+				}
+			]
+		},
+		"keywords": {
+			"patterns": [
+				{
+					"match": "\\b(using)\\s+(.+);",
+					"captures": {
+						"1": {
+							"name": "keyword.control"
+						},
+						"2": {
+							"name": "entity.other.attribute-name.class.mixin.css"
+						}
+					}
+				},
+				{
+					"name": "keyword",
+					"match": "\\b(class|module|mixin|function|var|const)\\b"
+				},
+				{
+					"name": "storage.modifier",
+					"match": "\\b(private|public)\\b"
+				},
+				{
+					"name": "keyword.operator.new",
+					"match": "\\bnew\\b"
+				},
+				{
+					"name": "entity.other.attribute-name.class.css",
+					"match": "\\b[_A-Z][_a-zA-Z0-9]*\\b"
+				},
+				{
+					"name": "variable.name",
+					"match": "(?:\\b([_A-Z][_A-Z]*)\\b|\\b([_a-zA-Z][_a-zA-Z0-9]*)(?=\\s*:)|\\b([_a-zA-Z][_a-zA-Z0-9]*)(?=\\s*\\.)|\\b([\\$@]?[_a-z][_a-zA-Z0-9]*)\\b)",
+					"captures": {
+						"1": {
+							"name": "constant.numeric"
+						},
+						"2": {
+							"name": "string"
+						},
+						"3": {
+							"name": "variable.name"
+						},
+						"4": {
+							"name": "variable.name"
+						}
+					}
+				},
+				{
+					"include": "#string-literal"
+				},
+				{
+					"include": "#regexp-literal"
+				},
+				{
+					"include": "#numeric"
+				}
+			]
+		},
+		"regexp-literal": {
+			"patterns": [
+				{
+					"name": "string.regexp",
+					"match": "/(?:\\\\.|\\S)(?:\\\\.|[^/])*/"
+				},
+				{
+					"name": "string.regexp",
+					"match": "%m\\{(?:\\\\.|\\S)(?:\\\\.|[^\\}])*\\}"
+				},
+				{
+					"name": "string.regexp",
+					"match": "%m\\[(?:\\\\.|\\S)(?:\\\\.|[^\\]])*\\]"
+				},
+				{
+					"name": "string.regexp",
+					"match": "%m<(?:\\\\.|\\S)(?:\\\\.|[^>])*>"
+				},
+				{
+					"name": "string.regexp",
+					"match": "%m\\((?:\\\\.|\\S)(?:\\\\.|[^\\)])*\\)"
+				},
+				{
+					"name": "string.regexp",
+					"match": "%m!(?:\\\\.|\\S)(?:\\\\.|[^!])*!"
+				},
+				{
+					"name": "string.regexp",
+					"match": "%m\\|(?:\\\\.|\\S)(?:\\\\.|[^\\|])*\\|"
+				},
+				{
+					"include": "#operators"
+				}
+			]
+		},
+		"operators": {
+			"patterns": [
+				{
+					"name": "keyword.operator",
+					"match": "=|\\+|\\+=|-|-=|\\*|\\*=|%|%=|<|>|<=|>=|<<|>>|<<=|>>=|/|/=|\\*\\*"
+				}
+			]
+		},
+		"numeric": {
+			"patterns": [
+				{
+					"name": "constant.numeric",
+					"match": "[-+]?[0-9]+"
+				},
+				{
+					"name": "constant.numeric",
+					"match": "[-+]?0[xX][0-9a-fA-F]+"
+				},
+				{
+					"name": "constant.numeric",
+					"match": ":[_a-zA-Z][_a-zA-Z0-9]*"
+				}
+			]
+		},
+		"string-literal": {
+			"patterns": [
+				{
+					"name": "string.quoted",
+					"begin": "\"",
+					"end": "\"",
+					"patterns": [
+						{
+							"name": "keyword.other.unit",
+							"match": "%\\{([^\\}]+)\\}",
+							"captures": {
+								"1": {
+									"patterns": [{
+										"include": "#pattern-all"
+									}]
+								}
+							}
+						},
+						{
+							"name": "string.quoted",
+							"match": "\\\\."
+						},
+						{
+							"name": "string.quoted",
+							"match": "[^\"]"
+						}
+					]
+				},
+				{
+					"name": "string.quoted",
+					"begin": "'",
+					"end": "'",
+					"patterns": [
+						{
+							"name": "keyword.other.unit",
+							"match": "%\\{([^\\}]+)\\}",
+							"captures": {
+								"1": {
+									"patterns": [{
+										"include": "#pattern-all"
+									}]
+								}
+							}
+						},
+						{
+							"name": "string.quoted",
+							"match": "\\\\."
+						},
+						{
+							"name": "string.quoted",
+							"match": "[^']"
+						}
+					]
+				},
+				{
+					"name": "constant.numeric",
+					"match": "\\.[0-9]+(?:[eE][-+]?[0-9]+)?\\b(?!\\s*\\()"
+				},
+				{
+					"name": "string",
+					"match": "\\.[_a-zA-Z0-9]+\\b(?!\\s*(\\(|\\.|\\[))"
+				},
+				{
+					"name": "string",
+					"match": "\\b([_a-zA-Z][_a-zA-Z0-9]*)\\s*(:)",
+					"captures": {
+						"1": {
+							"name": "string"
+						},
+						"2": {
+							"name": "keyword.other.unit"
+						}
+					}
+				}
+			]
+		},
+		"controls": {
+			"patterns": [
+				{
+					"name": "keyword.control",
+					"match": "\\b(if|else|for|in|foreach|while|do|switch|case|default|yield|continue|break|try|catch|finally|return|throw)\\b"
+				}
+			]
+		},
+		"comment": {
+			"patterns": [
+				{
+					"name": "comment",
+					"match": "(//|#).*$"
+				},
+				{
+					"name": "comment",
+					"begin": "(/\\*)(?:\\s*(?=\\s|(\\*/)))?",
+					"end": "\\*/"
+				}
+			]
+		},
+		"functions": {
+			"patterns": [
+				{
+					"name": "keyword.other.unit",
+					"match": "([_a-z][_a-zA-Z0-9]*|\\.[_a-z][_a-z\\.A-Z0-9]*)\\s*(?=\\()"
+				},
+				{
+					"name": "keyword.other.unit",
+					"match": "operator..?\\s*(?=\\()"
+				}
+			]
+		},
+		"punctuations": {
+			"patterns": [
+				{
+					"name": "keyword.other.unit",
+					"match": "\\{|\\}|\\(|\\)"
+				}
+			]
+		}
+	}
+}

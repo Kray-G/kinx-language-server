@@ -1,0 +1,47 @@
+{
+    "name": "kinx-language-server",
+    "version": "0.0.1",
+    "author": "Kray-G",
+    "license": "MIT",
+    "icon": "images/kinx.png",
+    "description": "Kinx Language Server",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Kray-G/kinx-language-server"
+    },
+    "engines": {
+        "vscode": "^1.52.1"
+    },
+    "main": "./extension.js",
+    "categories": [
+        "Programming Languages"
+    ],
+    "activationEvents": [
+        "onLanguage:kinx"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "kinx",
+                "aliases": [
+                    "Kinx",
+                    "kinx"
+                ],
+                "extensions": [
+                    ".kx"
+                ],
+                "configuration": "./kinx-language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "kinx",
+                "scopeName": "source.kinx",
+                "path": "./syntaxes/kinx.tmLanguage.json"
+            }
+        ]
+    },
+    "dependencies": {
+        "vscode-languageclient": "^7.0.0"
+    }
+}
