@@ -84,6 +84,7 @@ function sendMethodNotFoundResponse(id, method) {
 
 let diagnostics = [];
 let symbolmap = {};
+var tokens = [];
 
 function normalCheck(lineNumber, srcbuf, errmsg) {
   let srcline = srcbuf[lineNumber];
@@ -130,7 +131,6 @@ function usingCheck(filename, srcbuf, errmsg) {
 function symbolCheck(symbol, lineNumber, srcbuf, errmsg) {
   let srcline = srcbuf[lineNumber];
   if (srcline != null) {
-    logMessage(srcline)
     let re = new RegExp("\\b" + symbol + "\\b", 'g');
     let found;
     while ((found = re.exec(srcline)) != null) {
@@ -148,6 +148,91 @@ function symbolCheck(symbol, lineNumber, srcbuf, errmsg) {
       }
     }
   }
+}
+
+function getKindName(name) {
+  switch (name) {
+  case "var":   return "variable";
+  case "class": return "class";
+  case "module": return "class";
+  case "function": return "function";
+  case "public": return "function";
+  case "private": return "function";
+  case "native": return "function";
+  default:
+    ;
+  }
+  return "unknown";
+}
+
+function searchName(text, srcbuf, lineNumber) {
+  let srcline = srcbuf[lineNumber];
+  if (srcline != null) {
+    let re = new RegExp("\\b" + text + "\\b", 'g');
+    let found;
+    while ((found = re.exec(srcline)) != null) {
+      let index = found.index;
+      const key = text + ":" + lineNumber + ":" + index;
+      if (symbolmap[key] == null) {
+        symbolmap[key] = true;
+        return [index, index + text.length];
+      }
+    }
+  }
+  return [-1, -1];
+}
+
+function checkLocation(filename, errmsg, srcbuf) {
+  /*
+    TODO: Currently the location will be handled in the same file.
+  */
+  let result = errmsg.match(/#define\t(var|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)/);
+  if (result != null) {
+    let kind = getKindName(result[1]);
+    let text = result[2];
+    let file = result[3];
+    let lineNumber = parseInt(result[4]) - 1;
+    if (filename === file) {
+      let [start, end] = searchName(text, srcbuf, lineNumber);
+      if (start >= 0 && end >= 0) {
+        let data = {
+          "kind": kind, "text": text,
+          "location": { "uri": file, "range": {
+              "start": { "line": lineNumber, "character": start },
+              "end": { "line": lineNumber, "character": end } } }
+        };
+        tokens.push(data);
+      }
+    }
+    return;
+  }
+  result = errmsg.match(/#ref\tvar\t([^\t]+)\t([^\t]+)\t(\d+)\t([^\t]+)\t(\d+)/);
+  if (result != null) {
+    let kind = "variable";
+    let text = result[1];
+    let file1 = result[2];
+    let lineNumber1 = parseInt(result[3]) - 1;
+    let file2 = result[4];
+    let lineNumber2 = parseInt(result[5]) - 1;
+    if (filename === file1 && filename === file2) {
+      let [start1, end1] = searchName(text, srcbuf, lineNumber1);
+      let [start2, end2] = searchName(text, srcbuf, lineNumber2);
+      if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
+        let data = {
+          "kind": kind, "text": text,
+          "location": { "uri": filename, "range": {
+              "start": { "line": lineNumber1, "character": start1 },
+              "end": { "line": lineNumber1, "character": end1 } } },
+          "definition": { "uri": filename, "range": {
+              "start": { "line": lineNumber2, "character": start2 },
+              "end": { "line": lineNumber2, "character": end2 } } }
+        };
+        tokens.push(data);
+      }
+    }
+    return;
+  }
+  return;
 }
 
 function setOptions(uri) {
@@ -170,21 +255,24 @@ function compile(uri, src) {
   const buf = childProcess.execSync('kinx.exe -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 10000, input: src + '\n__END__' });
   const msg = buf.toString();
   if (msg.length == 0) {
-    logMessage("No error");
+    logMessage("No error found.");
     return;
   }
   diagnostics.length = 0;
   symbolmap = {};
+  tokens = [];
   const srcbuf = src.split(/\r?\n/);
-  const lines = msg.split(/\r?\n/);
-  for (let i = 0, l = lines.length; i < l; ++i) {
-    let errmsg = lines[i];
+  const msgs = msg.split(/\r?\n/);
+  for (let i = 0, l = msgs.length; i < l; ++i) {
+    let errmsg = msgs[i];
+    if (errmsg.length > 0 && errmsg.charAt(0) == '#') {
+      checkLocation(filename, errmsg, srcbuf);
+      continue;
+    }
     let result = errmsg.match(/Symbol\(([^\)]+)\).+?([^\s]+):(\d+)/);
     if (result == null) {
       result = errmsg.match(/.+?([^\s]+):(\d+)/);
       if (result != null) {
-        logMessage("filename:"+filename);
-        logMessage("errmsg:"+errmsg);
         let file = result[1];
         if (file === filename) {
           normalCheck(parseInt(result[2]) - 1, srcbuf, errmsg);
@@ -202,6 +290,13 @@ function compile(uri, src) {
     }
   }
   sendPublishDiagnostics(uri, diagnostics);
+  if (diagnostics.length === 1) {
+    logMessage("1 error found.");
+  } else if (diagnostics.length > 1) {
+    logMessage(diagnostics.length + " error(s) found.");
+  } else {
+    logMessage("No error found.");
+  }
 }
 
 const requestTable = {};
