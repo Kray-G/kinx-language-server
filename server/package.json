@@ -1,0 +1,29 @@
+{
+    "name": "kinx-server",
+    "version": "0.0.1",
+    "author": "Kray-G",
+    "description": "Kinx Language Server",
+    "engines": {
+        "node": "*"
+    },
+    "license": "MIT",
+    "bin": {
+        "kinx-server": "./bin/kinx-server"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Kray-G/kinx-language-server"
+    },
+    "bugs": {
+        "url": "https://github.com/Kray-G/kinx-language-server/issues"
+    },
+    "dependencies": {
+        "vscode-languageserver-textdocument": "^1.0.1",
+        "vscode-languageserver": "6.1.1",
+        "vscode-uri": "^2.1.2"
+    },
+    "devDependencies": {
+        "typescript": "^4.1.2"
+    },
+    "scripts": {}
+}

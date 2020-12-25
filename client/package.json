@@ -1,0 +1,25 @@
+{
+    "name": "client",
+    "displayName": "Kinx Language Client",
+    "description": "Kinx language client into VS Code.",
+    "version": "0.0.1",
+    "private": true,
+    "author": "Kray-G",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Kray-G/kinx-language-server"
+    },
+    "bugs": {
+        "url": "https://github.com/Kray-G/kinx-language-server/issues"
+    },
+    "engines": {
+        "vscode": "^1.43.0"
+    },
+    "devDependencies": {
+        "@types/vscode": "1.43.0"
+    },
+    "dependencies": {
+        "vscode-languageclient": "6.1.3"
+    }
+}

@@ -1,18 +1,23 @@
 {
     "name": "kinx-language-server",
+    "displayName": "Kinx Language Server Extension",
     "version": "0.0.1",
     "author": "Kray-G",
+    "publisher": "Kray-G",
     "license": "MIT",
     "icon": "images/kinx.png",
-    "description": "Kinx Language Server",
+    "description": "Kinx Language Server Extension",
     "repository": {
         "type": "git",
         "url": "https://github.com/Kray-G/kinx-language-server"
     },
+    "bugs": {
+        "url": "https://github.com/Kray-G/kinx-language-server/issues"
+    },
     "engines": {
         "vscode": "^1.52.1"
     },
-    "main": "./extension.js",
+    "main": "./client/out/extension",
     "categories": [
         "Programming Languages"
     ],
@@ -30,18 +35,36 @@
                 "extensions": [
                     ".kx"
                 ],
-                "configuration": "./kinx-language-configuration.json"
+                "configuration": "./client/kinx-language-configuration.json"
             }
         ],
         "grammars": [
             {
                 "language": "kinx",
                 "scopeName": "source.kinx",
-                "path": "./syntaxes/kinx.tmLanguage.json"
+                "path": "./client/syntaxes/kinx.tmLanguage.json"
             }
         ]
     },
-    "dependencies": {
-        "vscode-languageclient": "^7.0.0"
+    "scripts": {
+        "vscode:prepublish": "npm run webpack",
+        "webpack": "npm run clean && webpack --mode production --config ./client/webpack.config.js && webpack --mode production --config ./server/webpack.config.js",
+        "webpack:dev": "npm run clean && webpack --mode none --config ./client/webpack.config.js && webpack --mode none --config ./server/webpack.config.js",
+        "compile": "tsc -b",
+        "compile:client": "tsc -b ./client/tsconfig.json",
+        "compile:server": "tsc -b ./server/tsconfig.json",
+        "watch": "tsc -b -w",
+        "clean": "rimraf client/out && rimraf server/out",
+        "postinstall": "cd client && npm install && cd ../server && npm install && cd .."
+    },
+    "devDependencies": {
+        "@types/node": "^14.14.10",
+        "merge-options": "^3.0.4",
+        "rimraf": "^3.0.2",
+        "ts-loader": "^8.0.11",
+        "typescript": "^4.1.2",
+        "webpack": "^5.9.0",
+        "webpack-cli": "^4.2.0",
+        "eslint": "^7.14.0"
     }
 }
