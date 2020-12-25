@@ -38,7 +38,7 @@ connection.onInitialize(() => {
         capabilities: {
             textDocumentSync: {
                 openClose: true,
-                change: TextDocumentSyncKind.Incremental,
+                change: TextDocumentSyncKind.Full,
                 willSaveWaitUntil: false,
                 save: {
                     includeText: false,
@@ -53,6 +53,8 @@ connection.onInitialize(() => {
         },
     };
 });
+
+const tokenBuffer: any = {};
 
 /**
  * Normal error message analysis.
@@ -228,6 +230,10 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, message: s
                         "end": { "line": lineNumber, "character": end } } }
                 };
                 tokens.def.push(data);
+                tokens.count[text+":"+lineNumber] = {
+                    "count": 0,
+                    "data": data,
+                };
             }
         }
         return;
@@ -255,6 +261,9 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, message: s
                             "end": { "line": lineNumber2, "character": end2 } } }
                     };
                     tokens.ref.push(data);
+                    if (tokens.count[text+":"+lineNumber2] != null) {
+                        tokens.count[text+":"+lineNumber2].count++;
+                    }
                 }
             } else {
                 let code = fs.readFileSync(file2, "utf8");
@@ -340,9 +349,23 @@ function compile(tokens: any, diagnostics: Diagnostic[], url: string, src: strin
  * @param doc text document to analyze
  */
 function validate(doc: TextDocument) {
-    const tokens: any = { ref: [], def: [] };
+    let tokens: any = { ref: [], def: [], count: {} };
+    tokenBuffer[doc.uri.toString()] = tokens;
     const diagnostics: Diagnostic[] = [];
     compile(tokens, diagnostics, doc.uri, doc.getText());
+    for (let info of Object.keys(tokens.count).map(k => tokens.count[k])) {
+        if (info.count == 0) {
+            const diagnostic: Diagnostic = Diagnostic.create(
+                info.data.location.range,
+                "The variable(" + info.data.text + ") is defined but not used.",
+                DiagnosticSeverity.Warning,
+                "",
+                "Semantics Check",
+            );
+            diagnostics.push(diagnostic);
+        }
+    }
+    // console.log(JSON.stringify(tokens.count));
     connection.sendDiagnostics({ uri: doc.uri, diagnostics });
 }
 
