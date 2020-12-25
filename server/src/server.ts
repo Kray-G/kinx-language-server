@@ -224,7 +224,6 @@ function checkLocation(tokens: any[], symbolmap: any, filename: string, message:
                         "start": { "line": lineNumber, "character": start },
                         "end": { "line": lineNumber, "character": end } } }
                 };
-console.log(data);
                 tokens.push(data);
             }
         }
@@ -251,7 +250,6 @@ console.log(data);
                         "start": { "line": lineNumber2, "character": start2 },
                         "end": { "line": lineNumber2, "character": end2 } } }
                 };
-console.log(data);
                 tokens.push(data);
             }
         }
