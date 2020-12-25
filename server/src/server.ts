@@ -1,7 +1,7 @@
 "use strict";
 
 import {
-    CodeActionKind,
+    // CodeActionKind,
     createConnection,
     Diagnostic,
     DiagnosticSeverity,
@@ -19,9 +19,10 @@ const is_windows = process.platform === 'win32';
 // const is_mac     = process.platform === 'darwin';
 // const is_linux   = process.platform === 'linux';
 
-namespace CommandIDs {
-    export const fix = "kinx.fix";
-}
+// namespace CommandIDs {
+//     export const fix = "kinx.fix";
+// }
+
 // Create a connection for the server. The connection uses Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
 const connection = createConnection();
@@ -42,12 +43,12 @@ connection.onInitialize(() => {
                     includeText: false,
                 },
             },
-            codeActionProvider: {
-                codeActionKinds: [CodeActionKind.QuickFix],
-            },
-            executeCommandProvider: {
-                commands: [CommandIDs.fix],
-            },
+            // codeActionProvider: {
+            //     codeActionKinds: [CodeActionKind.QuickFix],
+            // },
+            // executeCommandProvider: {
+            //     commands: [CommandIDs.fix],
+            // },
         },
     };
 });
@@ -91,13 +92,13 @@ function normalCheck(diagnostics: Diagnostic[], lineNumber: number, srcbuf: stri
  * @param errmsg actual error message.
  */
 function usingCheck(diagnostics: Diagnostic[], symbolmap: any, filename: string, srcbuf: string[], errmsg: string) {
-    const file = filename.replace(/\.[^/.]+$/, "");
+    const usingfile = path.basename(filename).replace(/\.[^/.]+$/, "");
     for (let i = 0, l = srcbuf.length; i < l; ++i) {
         let srcline = srcbuf[i];
-        let re = new RegExp("using\\s+" + file + '\\s*;');
+        let re = new RegExp("using\\s+" + usingfile + '\\s*;');
         let result = re.exec(srcline);
         if (result != null && result.index >= 0) {
-            let key = "using:" + file + ':' + i;
+            let key = "using:" + usingfile + ':' + i;
             if (symbolmap[key] == null) {
                 symbolmap[key] = true;
                 const range: Range = {
@@ -209,6 +210,7 @@ function checkLocation(tokens: any[], symbolmap: any, filename: string, message:
     /*
         TODO: Currently the location will be handled in the same file.
     */
+    console.log(message);
     let result = message.match(/#define\t(var|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)/);
     if (result != null) {
         let kind = getKindName(result[1]);
