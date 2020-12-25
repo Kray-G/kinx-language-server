@@ -12,7 +12,7 @@ import {
 import { TextDocument } from "vscode-languageserver-textdocument";
 import * as process from 'process'
 import * as path from 'path'
-import * as url from 'url'
+import { URI } from 'vscode-uri'
 import * as childProcess from 'child_process';
 
 const is_windows = process.platform === 'win32';
@@ -264,13 +264,10 @@ function checkLocation(tokens: any[], symbolmap: any, filename: string, message:
  * Parameter analysis
  * @param uri uri string
  */
-function setOptions(uri: string) {
-    let filename = decodeURIComponent(url.parse(uri).pathname || "");
-    if (is_windows) {
-        filename = filename.replace(/^\//, '').replace(/\//g, '\\');
-    }
-    let diropt = '--workdir=' + path.dirname(filename);
-    filename = path.basename(filename);
+function setOptions(uristring: string) {
+    let fspath = URI.parse(uristring).fsPath;
+    let filename = path.basename(fspath);
+    let diropt = '--workdir=' + path.dirname(fspath);
     let fileopt = '--filename=' + filename;
     if (is_windows) {
         fileopt = '"' + fileopt + '"';
