@@ -5,6 +5,7 @@ import {
     createConnection,
     Diagnostic,
     DiagnosticSeverity,
+    ProposedFeatures,
     Range,
     TextDocuments,
     TextDocumentSyncKind,
@@ -15,6 +16,7 @@ import * as process from 'process'
 import * as path from 'path'
 import { URI } from 'vscode-uri'
 import * as childProcess from 'child_process';
+import { SemanticTokensBuilder } from "vscode-languageserver/lib/sematicTokens.proposed";
 
 const is_windows = process.platform === 'win32';
 // const is_mac     = process.platform === 'darwin';
@@ -26,7 +28,7 @@ const is_windows = process.platform === 'win32';
 
 // Create a connection for the server. The connection uses Node's IPC as a transport.
 // Also include all preview / proposed LSP features.
-const connection = createConnection();
+const connection = createConnection(ProposedFeatures.all);
 connection.console.info(`Kinx server running in node ${process.version}`);
 let documents!: TextDocuments<TextDocument>;
 
@@ -44,6 +46,14 @@ connection.onInitialize(() => {
                     includeText: false,
                 },
             },
+            semanticTokensProvider: {
+                full: true,
+                range: false,
+                legend: {
+                    tokenTypes: [ "comment" ],
+                    tokenModifiers: [],
+                }
+            }
             // codeActionProvider: {
             //     codeActionKinds: [CodeActionKind.QuickFix],
             // },
@@ -55,6 +65,22 @@ connection.onInitialize(() => {
 });
 
 const tokenBuffer: any = {};
+const semanticCheck: any = {};
+
+connection.onInitialized(() => {
+    console.log("initialized!");
+});
+
+connection.onRequest("textDocument/semanticTokens", (params) => {
+    let builder = new SemanticTokensBuilder();
+    const tokens: any[] = semanticCheck[params.textDocument.uri];
+    if (tokens != null) {
+        tokens.forEach(el => {
+            builder.push(el.line, el.start, el.end - el.start, 0, 0);
+        });
+    }
+    return builder.build();
+});
 
 /**
  * Normal error message analysis.
@@ -164,13 +190,13 @@ function symbolCheck(diagnostics: Diagnostic[], symbolmap: any, symbol: string, 
  */
 function getKindName(name: string) {
     switch (name) {
-    case "var":   return "variable";
-    case "class": return "class";
-    case "module": return "class";
+    case "var":      return "variable";
+    case "class":    return "class";
+    case "module":   return "class";
     case "function": return "function";
-    case "public": return "function";
-    case "private": return "function";
-    case "native": return "function";
+    case "public":   return "function";
+    case "private":  return "function";
+    case "native":   return "function";
     default:
         ;
     }
@@ -224,15 +250,15 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, message: s
             let [start, end] = searchName(symbolmap, text, srcbuf, lineNumber, true);
             if (start >= 0 && end >= 0) {
                 let data = {
-                    "kind": kind, "text": text,
-                    "location": { "uri": filename, "range": {
-                        "start": { "line": lineNumber, "character": start },
-                        "end": { "line": lineNumber, "character": end } } }
+                    kind: kind, text: text,
+                    location: { uri: filename, range: {
+                        start: { line: lineNumber, character: start },
+                        end: { line: lineNumber, character: end } } }
                 };
                 tokens.def.push(data);
                 tokens.count[text+":"+lineNumber] = {
-                    "count": 0,
-                    "data": data,
+                    count: 0,
+                    data: data,
                 };
             }
         }
@@ -252,13 +278,13 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, message: s
                 let [start2, end2] = searchName(symbolmap, text, srcbuf, lineNumber2, false);
                 if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                     let data = {
-                        "kind": kind, "text": text,
-                        "location": { "uri": filename, "range": {
-                            "start": { "line": lineNumber1, "character": start1 },
-                            "end": { "line": lineNumber1, "character": end1 } } },
-                        "definition": { "uri": filename, "range": {
-                            "start": { "line": lineNumber2, "character": start2 },
-                            "end": { "line": lineNumber2, "character": end2 } } }
+                        kind: kind, text: text,
+                        location: { uri: filename, range: {
+                            start: { line: lineNumber1, character: start1 },
+                            end: { line: lineNumber1, character: end1 } } },
+                        definition: { uri: filename, range: {
+                            start: { line: lineNumber2, character: start2 },
+                            end: { line: lineNumber2, character: end2 } } }
                     };
                     tokens.ref.push(data);
                     if (tokens.count[text+":"+lineNumber2] != null) {
@@ -271,13 +297,13 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, message: s
                 let [start2, end2] = searchName(symbolmap, text, codebuf, lineNumber2, false);
                 if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                     let data = {
-                        "kind": kind, "text": text,
-                        "location": { "uri": filename, "range": {
-                            "start": { "line": lineNumber1, "character": start1 },
-                            "end": { "line": lineNumber1, "character": end1 } } },
-                        "definition": { "uri": file2, "range": {
-                            "start": { "line": lineNumber2, "character": start2 },
-                            "end": { "line": lineNumber2, "character": end2 } } }
+                        kind: kind, text: text,
+                        location: { uri: filename, range: {
+                            start: { line: lineNumber1, character: start1 },
+                            end: { line: lineNumber1, character: end1 } } },
+                        definition: { uri: file2, range: {
+                            start: { line: lineNumber2, character: start2 },
+                            end: { line: lineNumber2, character: end2 } } }
                     };
                     tokens.ref.push(data);
                 }
@@ -350,19 +376,23 @@ function compile(tokens: any, diagnostics: Diagnostic[], url: string, src: strin
  */
 function validate(doc: TextDocument) {
     let tokens: any = { ref: [], def: [], count: {} };
-    tokenBuffer[doc.uri.toString()] = tokens;
+    const uri = doc.uri.toString();
+    tokenBuffer[uri] = tokens;
+    semanticCheck[uri] = [];
     const diagnostics: Diagnostic[] = [];
     compile(tokens, diagnostics, doc.uri, doc.getText());
     for (let info of Object.keys(tokens.count).map(k => tokens.count[k])) {
         if (info.count == 0) {
+            const range = info.data.location.range;
             const diagnostic: Diagnostic = Diagnostic.create(
-                info.data.location.range,
+                range,
                 "The variable(" + info.data.text + ") is defined but not used.",
                 DiagnosticSeverity.Warning,
                 "",
                 "Semantics Check",
             );
             diagnostics.push(diagnostic);
+            semanticCheck[uri].push({ line: range.start.line, start: range.start.character, end: range.end.character });
         }
     }
     // console.log(JSON.stringify(tokens.count));

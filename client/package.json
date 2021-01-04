@@ -14,12 +14,14 @@
         "url": "https://github.com/Kray-G/kinx-language-server/issues"
     },
     "engines": {
-        "vscode": "^1.43.0"
+        "vscode": "^1.52.0"
     },
     "devDependencies": {
-        "@types/vscode": "1.43.0"
+        "@types/vscode": "1.52.0"
     },
     "dependencies": {
-        "vscode-languageclient": "6.1.3"
+        "vscode-jsonrpc": "^6.0.0-next.5",
+        "vscode-languageclient": "^7.0.0-next.9",
+        "vscode-languageserver-protocol": "^3.16.0-next.7"
     }
 }

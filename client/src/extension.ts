@@ -4,6 +4,8 @@ import * as path from "path";
 import { ExtensionContext, window as Window } from "vscode";
 import { LanguageClient, LanguageClientOptions, RevealOutputChannelOn, ServerOptions, TransportKind } from "vscode-languageclient";
 
+
+let client: LanguageClient;
 export function activate(context: ExtensionContext): void {
     const serverModule = context.asAbsolutePath(path.join("server", "out", "server.js"));
     const debugOptions = { execArgv: ["--nolazy", "--inspect=6009"], cwd: process.cwd() };
@@ -25,17 +27,22 @@ export function activate(context: ExtensionContext): void {
         revealOutputChannelOn: RevealOutputChannelOn.Never,
     };
 
-    let client: LanguageClient;
     try {
         client = new LanguageClient("Kinx Language Server", serverOptions, clientOptions);
     } catch (err) {
         Window.showErrorMessage("The extension couldn't be started. See the output channel for details.");
-
         return;
     }
-    client.registerProposedFeatures();
 
+    client.registerProposedFeatures();
     context.subscriptions.push(
         client.start(),
     );
+}
+
+export function deactivate(): Thenable<void> | undefined {
+    if (!client) {
+        return undefined;
+    }
+    return client.stop();
 }
