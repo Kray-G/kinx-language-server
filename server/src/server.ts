@@ -430,7 +430,7 @@ class KinxLanguageServer {
     public getDefinition(uri: string, position: Position) {
         let line = position.line;
         let character = position.character;
-            let locations: any[] = this.tokenBuffer_[uri].ref;
+        let locations: any[] = this.tokenBuffer_[uri].ref;
         for (let i = 0, l = locations.length; i < l; ++i) {
             let location = locations[i].location;
             let range = location.range;
