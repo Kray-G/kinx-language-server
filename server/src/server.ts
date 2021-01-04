@@ -38,6 +38,7 @@ connection.onInitialize(() => {
 
     return {
         capabilities: {
+            definitionProvider: true,
             textDocumentSync: {
                 openClose: true,
                 change: TextDocumentSyncKind.Full,
@@ -80,6 +81,25 @@ connection.onRequest("textDocument/semanticTokens", (params) => {
         });
     }
     return builder.build();
+});
+
+connection.onRequest("textDocument/definition", (params) => {
+    console.log(Object.keys(params));
+    console.log(params.textDocument);
+    console.log(params.position);
+    let line = params.position.line;
+    let character = params.position.character;
+    console.log([line, character]);
+    let locations: any[] = tokenBuffer[params.textDocument.uri].ref;
+    for (let i = 0, l = locations.length; i < l; ++i) {
+        let location = locations[i].location;
+        let range = location.range;
+        if (range.start.line === line) {
+            if (range.start.character <= character && character <= range.end.character) {
+                return locations[i].definition;
+            }
+        }
+    }
 });
 
 /**
@@ -213,9 +233,10 @@ function getKindName(name: string) {
 function searchName(symbolmap: any, text: string, srcbuf: string[], lineNumber: number, checkDup: boolean) {
     let srcline = srcbuf[lineNumber];
     if (srcline != null) {
+        let line = srcline.replace(/"(\\"|[^"])+?"|'(\\'|[^'])+?'/g, (match) => ' '.repeat(match.length));
         let re = new RegExp("\\b" + text + "\\b", 'g');
         let found;
-        while ((found = re.exec(srcline)) != null) {
+        while ((found = re.exec(line)) != null) {
             let index = found.index;
             if (!checkDup) {
                 return [index, index + text.length];
@@ -275,7 +296,7 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, dirname: s
             if (start >= 0 && end >= 0) {
                 let data = {
                     kind: kind, text: text,
-                    location: { uri: filename, range: {
+                    location: { uri: URI.file(filename).toString(), range: {
                         start: { line: lineNumber, character: start },
                         end: { line: lineNumber, character: end } } }
                 };
@@ -290,6 +311,7 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, dirname: s
     }
     result = message.match(/#ref\tvar\t([^\t]+)\t([^\t]+)\t(\d+)\t([^\t]+)\t(\d+)/);
     if (result != null) {
+        let filepath = [dirname, filename].join(path.sep);
         let kind = "variable";
         let text = result[1];
         let file1 = result[2];
@@ -303,10 +325,10 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, dirname: s
                 if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                     let data = {
                         kind: kind, text: text,
-                        location: { uri: filename, range: {
+                        location: { uri: URI.file(filepath).toString(), range: {
                             start: { line: lineNumber1, character: start1 },
                             end: { line: lineNumber1, character: end1 } } },
-                        definition: { uri: filename, range: {
+                        definition: { uri: URI.file(filepath).toString(), range: {
                             start: { line: lineNumber2, character: start2 },
                             end: { line: lineNumber2, character: end2 } } }
                     };
@@ -323,10 +345,10 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, dirname: s
                 if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                     let data = {
                         kind: kind, text: text,
-                        location: { uri: filename, range: {
+                        location: { uri: URI.file(filepath).toString(), range: {
                             start: { line: lineNumber1, character: start1 },
                             end: { line: lineNumber1, character: end1 } } },
-                        definition: { uri: file2, range: {
+                        definition: { uri: URI.file(file2).toString(), range: {
                             start: { line: lineNumber2, character: start2 },
                             end: { line: lineNumber2, character: end2 } } }
                     };
@@ -402,8 +424,8 @@ function compile(tokens: any, diagnostics: Diagnostic[], url: string, src: strin
 function validate(doc: TextDocument) {
     let tokens: any = { ref: [], def: [], count: {} };
     const uri = doc.uri.toString();
-    tokenBuffer[uri] = tokens;
     semanticCheck[uri] = [];
+    tokenBuffer[uri] = tokens;
     const diagnostics: Diagnostic[] = [];
     compile(tokens, diagnostics, doc.uri, doc.getText());
     for (let info of Object.keys(tokens.count).map(k => tokens.count[k])) {
