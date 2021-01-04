@@ -246,6 +246,18 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, message: s
         let text = result[2];
         let file = result[3];
         let lineNumber = parseInt(result[4]) - 1;
+        if (kind == "function") {
+            let prev = tokens.def[tokens.def.length - 1];
+            if (prev && prev.text == text) {
+                tokens.def.pop();
+                prev = tokens.def[tokens.def.length - 1];
+                if (prev && prev.text == text) {
+                    tokens.def.pop();
+                }
+            }
+            delete tokens.count[text+":"+lineNumber];
+            return;
+        }
         if (filename === file) {
             let [start, end] = searchName(symbolmap, text, srcbuf, lineNumber, true);
             if (start >= 0 && end >= 0) {
@@ -334,8 +346,7 @@ function setOptions(uristring: string) {
  * Do compile the code
  * @param src source code string
  */
-function compile(tokens: any, diagnostics: Diagnostic[], url: string, src: string)
-{
+function compile(tokens: any, diagnostics: Diagnostic[], url: string, src: string) {
     const symbolmap: any = {};
     let [filename, fileopt, diropt] = setOptions(url);
     const buf = childProcess.execSync('kinx.exe -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 10000, input: src + '\n__END__' });
