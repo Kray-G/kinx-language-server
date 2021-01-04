@@ -230,7 +230,7 @@ class KinxLanguageServer {
     }
 
     private checkFilePath(dirname: string, candidate: string) {
-        let fspath = [dirname, candidate].join(path.sep);
+        let fspath = path.join(dirname, candidate);
         try {
             if (fs.existsSync(fspath)) {
                 return fspath;
@@ -289,7 +289,7 @@ class KinxLanguageServer {
         }
         result = message.match(/#ref\tvar\t([^\t]+)\t([^\t]+)\t(\d+)\t([^\t]+)\t(\d+)/);
         if (result != null) {
-            let filepath = [dirname, filename].join(path.sep);
+            let filepath = path.join(dirname, filename);
             let kind = "variable";
             let text = result[1];
             let file1 = result[2];
