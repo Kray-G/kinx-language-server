@@ -230,6 +230,18 @@ function searchName(symbolmap: any, text: string, srcbuf: string[], lineNumber: 
     return [-1, -1];
 }
 
+function checkFilePath(dirname: string, candidate: string) {
+    let fspath = [dirname, candidate].join(path.sep);
+    try {
+        if (fs.existsSync(fspath)) {
+            return fspath;
+        }
+    } catch {
+        ;
+    }
+    return candidate;
+}
+
 /**
  * Check the symbol location.
  * @param tokens result buffer.
@@ -238,7 +250,7 @@ function searchName(symbolmap: any, text: string, srcbuf: string[], lineNumber: 
  * @param message actual message.
  * @param srcbuf source code buffer.
  */
-function checkLocation(tokens: any, symbolmap: any, filename: string, message: string, srcbuf: string[]) {
+function checkLocation(tokens: any, symbolmap: any, filename: string, dirname: string, message: string, srcbuf: string[]) {
     // console.log(message);
     let result = message.match(/#define\t(var|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)/);
     if (result != null) {
@@ -304,6 +316,7 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, message: s
                     }
                 }
             } else {
+                file2 = checkFilePath(dirname, result[4]);
                 let code = fs.readFileSync(file2, "utf8");
                 let codebuf = code.split(/\r?\n/);
                 let [start2, end2] = searchName(symbolmap, text, codebuf, lineNumber2, false);
@@ -333,13 +346,14 @@ function checkLocation(tokens: any, symbolmap: any, filename: string, message: s
 function setOptions(uristring: string) {
     let fspath = URI.parse(uristring).fsPath;
     let filename = path.basename(fspath);
-    let diropt = '--workdir=' + path.dirname(fspath);
+    let dirname = path.dirname(fspath);
+    let diropt = '--workdir=' + dirname;
     let fileopt = '--filename=' + filename;
     if (is_windows) {
         fileopt = '"' + fileopt + '"';
         diropt = '"' + diropt + '"';
     }
-    return [filename, fileopt, diropt];
+    return [filename, dirname, fileopt, diropt];
 }
 
 /**
@@ -348,7 +362,7 @@ function setOptions(uristring: string) {
  */
 function compile(tokens: any, diagnostics: Diagnostic[], url: string, src: string) {
     const symbolmap: any = {};
-    let [filename, fileopt, diropt] = setOptions(url);
+    let [filename, dirname, fileopt, diropt] = setOptions(url);
     const buf = childProcess.execSync('kinx.exe -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 10000, input: src + '\n__END__' });
     const msgs = buf.toString();
     const srcbuf = src.split(/\r?\n/);
@@ -356,7 +370,7 @@ function compile(tokens: any, diagnostics: Diagnostic[], url: string, src: strin
     for (let i = 0, l = msgbuf.length; i < l; ++i) {
         let errmsg = msgbuf[i];
         if (errmsg.length > 0 && errmsg.charAt(0) == '#') {
-            checkLocation(tokens, symbolmap, filename, errmsg, srcbuf);
+            checkLocation(tokens, symbolmap, filename, dirname, errmsg, srcbuf);
             continue;
         }
         let result = errmsg.match(/Symbol\(([^\)]+)\).+?<([^>]+)>:(\d+)/);
