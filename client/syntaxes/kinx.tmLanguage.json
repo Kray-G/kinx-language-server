@@ -47,7 +47,7 @@
 				},
 				{
 					"name": "keyword",
-					"match": "\\b(class|module|mixin|function|var|const)\\b"
+					"match": "\\b(namespace|class|module|mixin|function|var|const|_namespace|_class|_module|_function)\\b"
 				},
 				{
 					"name": "storage.modifier",
@@ -254,7 +254,7 @@
 				},
 				{
 					"name": "entity.name.function",
-					"match": "operator..?\\s*(?=\\()"
+					"match": "(\\+|-|\\*|/|\\[\\]|&|\\||^)\\s*(?=\\()"
 				}
 			]
 		},
