@@ -1,6 +1,8 @@
 "use strict";
 
 import {
+    CompletionItem,
+    CompletionItemKind,
     // CodeActionKind,
     createConnection,
     Diagnostic,
@@ -8,6 +10,7 @@ import {
     Position,
     ProposedFeatures,
     Range,
+    TextDocumentPositionParams,
     TextDocuments,
     TextDocumentSyncKind,
 } from "vscode-languageserver";
@@ -33,47 +36,133 @@ const connection = createConnection(ProposedFeatures.all);
 connection.console.info(`Kinx server running in node ${process.version}`);
 let documents!: TextDocuments<TextDocument>;
 
-connection.onInitialize(() => {
-    documents = new TextDocuments(TextDocument);
-    setupDocumentsListeners();
+const keywords = [
+    "__END__",
+    "__LINE__",
+    "__FILE__",
+    "_import",
+    "_function",
+    "_class",
+    "_module",
+    "_namespace",
+    "ary",
+    "as",
+    "break",
+    "bin",
+    "big",
+    "class",
+    "catch",
+    "case",
+    "continue",
+    "const",
+    "do",
+    "default",
+    "dbl",
+    "else",
+    "enum",
+    "function",
+    "for",
+    "finally",
+    "false",
+    "if",
+    "in",
+    "import",
+    "isNull",
+    "isUndefined",
+    "isDefined",
+    "isInteger",
+    "isBigInteger",
+    "isNumber",
+    "isString",
+    "isDouble",
+    "isBinary",
+    "isFunction",
+    "isArray",
+    "isObject",
+    "int",
+    "module",
+    "mixin",
+    "null",
+    "new",
+    "native",
+    "namespace",
+    "obj",
+    "public",
+    "private",
+    "protected",
+    "return",
+    "switch",
+    "str",
+    "throw",
+    "try",
+    "true",
+    "using",
+    "undefined",
+    "var",
+    "while",
+    "yield",
+];
 
-    return {
-        capabilities: {
-            definitionProvider: true,
-            textDocumentSync: {
-                openClose: true,
-                change: TextDocumentSyncKind.Full,
-                willSaveWaitUntil: false,
-                save: {
-                    includeText: false,
-                },
-            },
-            semanticTokensProvider: {
-                full: true,
-                range: false,
-                legend: {
-                    tokenTypes: [ "comment" ],
-                    tokenModifiers: [],
-                }
-            }
-            // codeActionProvider: {
-            //     codeActionKinds: [CodeActionKind.QuickFix],
-            // },
-            // executeCommandProvider: {
-            //     commands: [CommandIDs.fix],
-            // },
-        },
-    };
-});
+const predefinedMethods: any = {
+    "System:Class": [
+        "PLATFORM",
+        "abort",
+        "defineException",
+        "exec",
+        "gc",
+        "getopt",
+        "halt",
+        "isUtf8Bytes",
+        "localtime",
+        "parseDouble",
+        "parseInt",
+        "print",
+        "println",
+        "sleep",
+        "try"
+    ],
+    "File:Class": [
+        "APPEND", "BINARY", "READ", "TEXT", "WRITE",
+        "dirclose", "direntry", "diropen",
+        "exists", "filedate", "filesize", "setFiledate",
+        "isDirectory", "isSymlink",
+        "load", "mkdir", "open", "remove", "rename", "unlink",
+    ],
+    "File": [
+        "APPEND", "BINARY", "READ", "TEXT", "WRITE",
+        "isFile", "mkdir", "load", "close",
+        "readLine", "eachLine",
+        "filedate", "filesize", "setFiledate",
+        "getch", "geti", "putch",
+        "peek", "print", "println",
+        "rename", "unlink", "source",
+    ],
+};
+
+const isUpperCase = (c: string) => {
+    return /^[A-Z]+$/g.test(c)
+};
 
 class KinxLanguageServer {
 
-    tokenBuffer_: any;
-    semanticCheck_: any;
+    private tokenBuffer_: any;
+    private semanticCheck_: any;
+    private srcCode_: any;
+    private symbols_: any;
+    private methods_: any;
+    private varTypeMap_: any;
+    private inheritMap_: any;
+    private scope_: any[];
 
     constructor() {
         this.tokenBuffer_ = {};
         this.semanticCheck_ = {};
+        this.srcCode_ = {};
+        this.symbols_ = {};
+        this.methods_ = {};
+        this.varTypeMap_ = {};
+        this.inheritMap_ = {};
+        this.scope_ = [];
     }
 
     public getSemanticCheckedTokens(uri: string) {
@@ -158,7 +247,7 @@ class KinxLanguageServer {
     private symbolCheck(diagnostics: Diagnostic[], symbolmap: any, symbol: string, lineNumber: number, srcbuf: string[], errmsg: string) {
         let srcline = srcbuf[lineNumber];
         if (srcline != null) {
-            let re = new RegExp("\\b" + symbol + "\\b", 'g');
+            let re = new RegExp("\\b" + symbol.replace(/\+|\||\*|\[|\]/, "\\$1") + "\\b", 'g');
             let found;
             while ((found = re.exec(srcline)) != null) {
                 let index = found.index;
@@ -212,7 +301,7 @@ class KinxLanguageServer {
         let srcline = srcbuf[lineNumber];
         if (srcline != null) {
             let line = srcline.replace(/"(\\"|[^"])+?"|'(\\'|[^'])+?'/g, (match) => ' '.repeat(match.length));
-            let re = new RegExp("\\b" + text + "\\b", 'g');
+            let re = new RegExp("\\b" + text.replace(/\+|\||\*|\[|\]/, "\\$1") + "\\b", 'g');
             let found;
             while ((found = re.exec(line)) != null) {
                 let index = found.index;
@@ -241,6 +330,16 @@ class KinxLanguageServer {
         return candidate;
     }
 
+    private setSymbolInfo(uri: string, text: string, type: string) {
+        if (type === "public") {
+            let scope = this.scope_[this.scope_.length - 1].name;
+            this.methods_[uri][scope] ??= {}
+            this.methods_[uri][scope][text] = { kind: CompletionItemKind.Method };
+        } else {
+            this.symbols_[uri][text] = { kind: isUpperCase(text.charAt(0)) ? CompletionItemKind.Class : CompletionItemKind.Variable };
+        }
+    }
+
     /**
      * Check the symbol location.
      * @param tokens result buffer.
@@ -249,23 +348,39 @@ class KinxLanguageServer {
      * @param message actual message.
      * @param srcbuf source code buffer.
      */
-    private checkLocation(tokens: any, symbolmap: any, filename: string, dirname: string, message: string, srcbuf: string[]) {
+    private checkLocation(uri: string, tokens: any, symbolmap: any, filename: string, dirname: string, message: string, srcbuf: string[]) {
         // console.log(message);
-        let result = message.match(/#define\t(var|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)/);
+        let result = message.match(/#vartype\t([^\t]+)\t([^\t]+)/);
+        if (result != null) {
+            let varname = result[1];
+            let typename = result[2];
+            this.varTypeMap_[uri][varname] ??= {};
+            this.varTypeMap_[uri][varname][typename] = true;
+            return;
+        }
+        result = message.match(/#scope\t(start|end)\t(function|class)(?:\t([^\t]+))?/);
+        if (result != null) {
+            let isEnd = result[1] === "end";
+            let isClass = result[2] === "class";
+            if (isClass) {
+                if (isEnd) {
+                    this.scope_.pop();
+                } else {
+                    let name = result[3];
+                    this.scope_.push({ name: name });
+                }
+            }
+            return;
+        }
+        result = message.match(/#define\t(var|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+))?/);
         if (result != null) {
             let kind = this.getKindName(result[1]);
             let text = result[2];
             let file = result[3];
             let lineNumber = parseInt(result[4]) - 1;
+            let typename = result[5];
+            this.setSymbolInfo(uri, text, result[1]);
             if (kind == "function") {
-                let prev = tokens.def[tokens.def.length - 1];
-                if (prev && prev.text == text) {
-                    tokens.def.pop();
-                    prev = tokens.def[tokens.def.length - 1];
-                    if (prev && prev.text == text) {
-                        tokens.def.pop();
-                    }
-                }
                 delete tokens.count[text+":"+lineNumber];
                 return;
             }
@@ -273,16 +388,27 @@ class KinxLanguageServer {
                 let [start, end] = this.searchName(symbolmap, text, srcbuf, lineNumber, true);
                 if (start >= 0 && end >= 0) {
                     let data = {
-                        kind: kind, text: text,
+                        kind: kind, text: text, typename: kind === "class" ? text : typename,
                         location: { uri: URI.file(filename).toString(), range: {
                             start: { line: lineNumber, character: start },
                             end: { line: lineNumber, character: end } } }
                     };
                     tokens.def.push(data);
-                    tokens.count[text+":"+lineNumber] = {
-                        count: 0,
-                        data: data,
-                    };
+                    if (kind !== "class") {
+                        tokens.count[text+":"+lineNumber] = {
+                            count: 0,
+                            data: data,
+                        };
+                    }
+                    if (kind === "class" && typename !== "") {
+                        this.inheritMap_[uri][text] ??= {};
+                        this.inheritMap_[uri][text][typename] = true;
+                    }
+                }
+            } else {
+                if (kind === "class" && typename !== "") {
+                    this.inheritMap_[uri][text] ??= {};
+                    this.inheritMap_[uri][text][typename] = true;
                 }
             }
             return;
@@ -356,25 +482,50 @@ class KinxLanguageServer {
         return [filename, dirname, fileopt, diropt];
     }
 
+    private makeDefaultVarMap(srcbuf: string[]) {
+        let candidate: any = {
+            "$stdin":  { "File": true },
+            "$stdout": { "File": true },
+            "$stderr": { "File": true },
+        };
+        for (let i = 0, l = srcbuf.length; i < l; ++i) {
+            let result = srcbuf[i].match(/([$_a-zA-Z0-9]+)\s*=\s*new\s+(?:[$_a-zA-Z0-9]+\.)*([$_a-zA-Z0-9]+)\(/);
+            if (result != null) {
+                let varname = result[1];
+                let typename = result[2];
+                candidate[varname] ??= {};
+                candidate[varname][typename] = true;
+            }
+        }
+        return candidate;
+    }
+
     /**
      * Do compile the code
      * @param src source code string
      */
     private compile(uri: string, diagnostics: Diagnostic[], url: string, src: string) {
         let tokens: any = { ref: [], def: [], count: {} };
+        this.symbols_[uri] = [];
         this.semanticCheck_[uri] = [];
         this.tokenBuffer_[uri] = tokens;
+        this.scope_ = [];
+        this.methods_[uri] = {};
+        this.inheritMap_[uri] = {};
+
+        this.srcCode_[uri] = src.split(/\r?\n/);
+        const srcbuf = this.srcCode_[uri];
+        this.varTypeMap_[uri] = this.makeDefaultVarMap(srcbuf);
 
         const symbolmap: any = {};
         let [filename, dirname, fileopt, diropt] = this.setOptions(url);
         const buf = childProcess.execSync('kinx.exe -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 10000, input: src + '\n__END__' });
         const msgs = buf.toString();
-        const srcbuf = src.split(/\r?\n/);
         const msgbuf = msgs.split(/\r?\n/);
         for (let i = 0, l = msgbuf.length; i < l; ++i) {
             let errmsg = msgbuf[i];
             if (errmsg.length > 0 && errmsg.charAt(0) == '#') {
-                this.checkLocation(tokens, symbolmap, filename, dirname, errmsg, srcbuf);
+                this.checkLocation(uri, tokens, symbolmap, filename, dirname, errmsg, srcbuf);
                 continue;
             }
             let result = errmsg.match(/Symbol\(([^\)]+)\).+?<([^>]+)>:(\d+)/);
@@ -398,6 +549,11 @@ class KinxLanguageServer {
             }
         }
 
+        this.symbols_[uri] = Object.keys(this.symbols_[uri]).map((name: string) => ({
+            name: name,
+            kind: this.symbols_[uri][name].kind,
+        }));
+
         return tokens;
     }
 
@@ -410,17 +566,19 @@ class KinxLanguageServer {
         const diagnostics: Diagnostic[] = [];
         let tokens = this.compile(uri, diagnostics, doc.uri, doc.getText());
         for (let info of Object.keys(tokens.count).map(k => tokens.count[k])) {
-            if (info.count == 0) {
-                const range = info.data.location.range;
+            const range = info.data.location.range;
+            if (info.count != 0) {
+                this.semanticCheck_[uri].push({ line: range.start.line, start: range.start.character, end: range.end.character, tokenTypesIndex: 1 });
+            } else {
                 const diagnostic: Diagnostic = Diagnostic.create(
                     range,
                     "The variable(" + info.data.text + ") is defined but not used.",
                     DiagnosticSeverity.Warning,
                     "",
-                    "Semantics Check",
+                    "Semantic Check",
                 );
                 diagnostics.push(diagnostic);
-                this.semanticCheck_[uri].push({ line: range.start.line, start: range.start.character, end: range.end.character });
+                this.semanticCheck_[uri].push({ line: range.start.line, start: range.start.character, end: range.end.character, tokenTypesIndex: 0 });
             }
         }
 
@@ -442,16 +600,196 @@ class KinxLanguageServer {
         }
     }
 
+    private getPreviousToken(srcline: string, end: number) {
+        let re = new RegExp("[$_a-zA-Z][$_a-zA-Z0-9]*", 'g');
+        let found;
+        while ((found = re.exec(srcline)) != null) {
+            let last = found.index + found[0].length;
+            if (last == end) {
+                return found[0];
+            }
+        }
+        return "";
+    }
+
+    private getTypenameOnDecl(uri: string, name: string, line: number) {
+        let index = -1;
+        let defs: any[] = this.tokenBuffer_[uri].def;
+        if (defs != null) {
+            for (let i = 0, l = defs.length; i < l; ++i) {
+                let data = defs[i];
+                if (data.text === name) {
+                    let range = data.location.range;
+                    if (index >= 0 && range.start.line > line) {
+                        break;
+                    }
+                    index = i;
+                }
+            }
+        }
+        if (index >= 0) {
+            return defs[index].typename;
+        }
+        return null;
+    }
+
+    private getCompletionCandidateByTypename(methods: any, uri: string, basetype: string) {
+        let types = [ basetype ];
+        while (types.length > 0) {
+            let typename: string | undefined = types.pop();
+            if (typename != null) {
+                if (this.inheritMap_[uri].hasOwnProperty(typename)) {
+                    Object.keys(this.inheritMap_[uri][typename]).forEach((name: string) => {
+                        types.push(name);   // add inherit class name.
+                    });
+                }
+                if (this.methods_[uri].hasOwnProperty(typename)) {
+                    Object.keys(this.methods_[uri][typename]).forEach((method: string) => {
+                        methods[method] = true;
+                    });
+                }
+                if (predefinedMethods.hasOwnProperty(typename)) {
+                    let prelist: string[] = predefinedMethods[typename];
+                    prelist.forEach((method: string) => {
+                        methods[method] = true;
+                    });
+                }
+            }
+        }
+    }
+
+    public getCompletionCandidates(uri: string, position: Position): CompletionItem[] {
+        const srcbuf = this.srcCode_[uri];
+        const srcline = srcbuf[position.line];
+        const lastChar = srcline.charAt(position.character - 1);
+        let candidates: any;
+        let index = 0;
+        switch (lastChar) {
+        case ':':
+            candidates = [
+                { label: "int", kind: CompletionItemKind.TypeParameter, data: 0 },
+                { label: "big", kind: CompletionItemKind.TypeParameter, data: 1 },
+                { label: "dbl", kind: CompletionItemKind.TypeParameter, data: 2 },
+                { label: "bin", kind: CompletionItemKind.TypeParameter, data: 3 },
+                { label: "str", kind: CompletionItemKind.TypeParameter, data: 4 },
+            ];
+            break;
+        case '_':
+            candidates = keywords.map((el: string) => ({
+                label: el,
+                kind: CompletionItemKind.Keyword,
+                data: ++index,
+            }));
+            candidates.concat(this.symbols_[uri].map((el: any) => ({
+                label: el.name,
+                kind: el.kind,
+                data: ++index,
+            })));
+            break;
+        case '.':
+            var token = this.getPreviousToken(srcline, position.character - 1);
+            let list: string[] | null = predefinedMethods.hasOwnProperty(token + ":Class") ? predefinedMethods[token + ":Class"] : null;
+            if (list == null && this.methods_[uri] != null && this.methods_[uri].hasOwnProperty(token)) {
+                let scope = this.methods_[uri][token];
+                if (scope != null) {
+                    list = Object.keys(scope);
+                }
+            }
+            if (list == null) {
+                // Check the nearest declaration.
+                let typename = this.getTypenameOnDecl(uri, token, position.line);
+                if (typename != null) {
+                    let methods: any = {};
+                    this.getCompletionCandidateByTypename(methods, uri, typename);
+                    list = Object.keys(methods);
+                    if (list.length == 0) {
+                        list = null;
+                    }
+                }
+            }
+            if (list == null && this.varTypeMap_[uri] != null && this.varTypeMap_[uri].hasOwnProperty(token)) {
+                // Check possible types.
+                var typenamelist = Object.keys(this.varTypeMap_[uri][token]);
+                let methods: any = {};
+                typenamelist.map((typename) => {
+                    this.getCompletionCandidateByTypename(methods, uri, typename);
+                });
+                list = Object.keys(methods);
+                if (list.length == 0) {
+                    list = null;
+                }
+            }
+            if (list != null) {
+                // dot completion means always it is a method.
+                candidates = list.map((name: string) => ({
+                    label: name,
+                    kind: CompletionItemKind.Method,
+                    data: ++index,
+                }));
+            }
+            break;
+        default:
+            candidates = this.symbols_[uri].map((el: any) => ({
+                label: el.name,
+                kind: el.kind,
+                data: ++index,
+            }));
+            break;
+        }
+        return candidates;
+    }
+
 }
 
 let server: KinxLanguageServer = new KinxLanguageServer();
+
+connection.onInitialize(() => {
+    documents = new TextDocuments(TextDocument);
+    setupDocumentsListeners();
+
+    return {
+        capabilities: {
+            definitionProvider: true,
+            completionProvider: {
+                resolveProvider: false,
+                triggerCharacters: [ '.', ':' ]
+            },
+            textDocumentSync: {
+                openClose: true,
+                change: TextDocumentSyncKind.Full,
+                willSaveWaitUntil: false,
+                save: {
+                    includeText: false,
+                },
+            },
+            semanticTokensProvider: {
+                full: true,
+                range: false,
+                legend: {
+                    tokenTypes: [ "comment", "variable" ],
+                    tokenModifiers: [],
+                }
+            }
+            // codeActionProvider: {
+            //     codeActionKinds: [CodeActionKind.QuickFix],
+            // },
+            // executeCommandProvider: {
+            //     commands: [CommandIDs.fix],
+            // },
+        },
+    };
+});
+
+connection.onCompletion((params: TextDocumentPositionParams): CompletionItem[] => {
+    return server.getCompletionCandidates(params.textDocument.uri, params.position);
+});
 
 connection.onRequest("textDocument/semanticTokens", (params) => {
     let builder = new SemanticTokensBuilder();
     const tokens: any[] = server.getSemanticCheckedTokens(params.textDocument.uri);
     if (tokens != null) {
         tokens.forEach(el => {
-            builder.push(el.line, el.start, el.end - el.start, 0, 0);
+            builder.push(el.line, el.start, el.end - el.start, el.tokenTypesIndex, 0);
         });
     }
     return builder.build();
