@@ -106,20 +106,10 @@ const keywords = [
 const predefinedMethods: any = {
     "System:Class": [
         "PLATFORM",
-        "abort",
-        "defineException",
-        "exec",
-        "gc",
-        "getopt",
-        "halt",
-        "isUtf8Bytes",
-        "localtime",
-        "parseDouble",
-        "parseInt",
-        "print",
-        "println",
-        "sleep",
-        "try"
+        "abort", "defineException", "exec", "gc", "getopt",
+        "halt", "isUtf8Bytes", "localtime",
+        "print", "println",
+        "sleep", "try",
     ],
     "File:Class": [
         "APPEND", "BINARY", "READ", "TEXT", "WRITE",
