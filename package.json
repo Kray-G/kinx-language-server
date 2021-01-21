@@ -5,7 +5,7 @@
     "author": "Kray-G",
     "publisher": "Kray-G",
     "license": "MIT",
-    "icon": "images/kinx.png",
+    "icon": "client/images/kinx.png",
     "description": "Kinx Language Server Extension",
     "repository": {
         "type": "git",
@@ -25,6 +25,42 @@
         "onLanguage:kinx"
     ],
     "contributes": {
+        "commands": [
+            {
+                "command": "kinx.run",
+                "title": "Run Kinx Script",
+                "category": "Kinx",
+                "icon": {
+                    "light": "client/images/icons/light/runkinx.svg",
+                    "dark": "client/images/icons/dark/runkinx.svg"
+                }
+            }
+        ],
+        "menus": {
+            "editor/title": [{
+                "when": "resourceLangId == kinx",
+                "command": "kinx.run",
+                "group": "navigation"
+            }]
+        },
+        "keybindings": [
+            {
+                "command": "kinx.run",
+                "key": "ctrl+r",
+                "mac": "cmd+r",
+                "when": "editorTextFocus"
+            }
+        ],
+        "configuration": {
+            "title": "Kinx",
+            "properties": {
+                "kinx.execPath": {
+                    "type": "string",
+                    "description": "Specify where the Kinx executable.",
+                    "scope": "machine-overridable"
+                }
+            }
+        },
         "languages": [
             {
                 "id": "kinx",
