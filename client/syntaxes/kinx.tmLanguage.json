@@ -63,6 +63,10 @@
 				},
 				{
 					"name": "variable.name",
+					"match": "\\.\\.\\."
+				},
+				{
+					"name": "variable.name",
 					"match": "(?:\\b([_A-Z][_A-Z]*)\\b|\\b([_a-zA-Z][_a-zA-Z0-9]*)(?=\\s*:)|\\b([_a-zA-Z][_a-zA-Z0-9]*)(?=\\s*\\.)|\\b([\\$@]?[_a-z][_a-zA-Z0-9]*)\\b)",
 					"captures": {
 						"1": {
