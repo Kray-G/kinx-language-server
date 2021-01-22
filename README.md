@@ -14,10 +14,15 @@ Now this product is under construction. It works with a debug mode only.
 
 # Features
 
+* Highlight a source code.
 * Detects a script error.
 * Detects an unused variable though it is defined.
 * Auto-completion.
 * Run the current script file on the VSCode.
+
+## Highlight
+
+![Highlight](docs/images/highlight.png)
 
 ## Error
 
