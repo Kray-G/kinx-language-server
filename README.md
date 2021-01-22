@@ -37,14 +37,14 @@ You can find and fix it easily.
 ## Warning
 
 Unused variables are detected as a warning.
-It is not an error, but you can check it.
+It is not an error, but you can check it easily.
 
 ![Warning](docs/images/warning.png)
 
 ## Run Script
 
 You can run your script code on the fly even without saving.
-It is easy because of pressing a icon or just using <kbd>CTRL-R</kbd> keys.
+It is easy because of clicking a icon or just pressing a <kbd>Ctrl-R</kbd> key.
 
 ![Run](docs/images/run.png)
 
@@ -54,3 +54,9 @@ Auto completion is available.
 It suggests public methods collected from the class automatically, and it will also include methods on a base class.
 
 ![AutoComp](docs/images/autocomp.png)
+
+# License
+
+This project is licensed under the **MIT License**.
+See the [LICENSE](LICENSE) file for details.
+
