@@ -11,11 +11,33 @@ function runKinx(outputChannel: OutputChannel, filename: string, text: string) {
     let dirname = path.dirname(filename);
     let orgdir = process.cwd();
     process.chdir(dirname);
-    let kinx = child_process.exec("kinx -i", (_error, stdout, stderr) => {
-        outputChannel.appendLine(stdout);
-        outputChannel.appendLine(stderr);
+    let kinx = child_process.exec("kinx -i", (error, stdout, stderr) => {
+        if (stdout) {
+            outputChannel.appendLine(stdout);
+        }
+        if (stderr) {
+            outputChannel.appendLine(stderr);
+        }
+        outputChannel.appendLine("----------------------------------------------------------------");
+        if (error) {
+            outputChannel.appendLine("Exit code = " + error.code);
+        } else {
+            outputChannel.appendLine("Exit code = 0");
+        }
+        outputChannel.appendLine("");
     });
-    kinx.stdin?.write(text + '\n__END__');
+    let srccode = "var tmr = new SystemTimer(); try { " +
+                text +
+                "} catch (e) {" +
+                "System.println('>>> Exception Occurred'); " +
+                "System.println(e.type() + ': ' + e.what()); " +
+                "e.printStackTrace(); " +
+                "} finally {" +
+                "System.println('\n----------------------------------------------------------------'); " +
+                "System.println('Elapsed(in seconds): %f' % tmr.elapsed()); " +
+                "}" +
+                "\n__END__";
+    kinx.stdin?.write(srccode);
     kinx.stdin?.end();
     process.chdir(orgdir);
 }
@@ -30,8 +52,11 @@ export function activate(context: ExtensionContext): void {
                 if (outputChannel == null) {
                     outputChannel = Window.createOutputChannel("Kinx Output");
                 }
-                outputChannel.clear();
                 outputChannel.show(true);
+                outputChannel.appendLine("================================================================");
+                outputChannel.appendLine("Started at " + new Date(Date.now()).toString());
+                outputChannel.appendLine("");
+                outputChannel.appendLine("---- R E S U L T -----------------------------------------------");
                 runKinx(outputChannel, filename, text);
             }
         }
