@@ -18,3 +18,21 @@ Now this product is under construction. It works with a debug mode only.
 * Detects an unused variable though it is defined.
 * Auto-completion.
 * Run the current script file on the VSCode.
+
+## Error
+
+* Compile Error will be detected as an error.
+
+![Error](docs/images/error.png)
+
+## Warning
+
+* Unused variables are detected as a warning.
+
+![Warning](docs/images/warning.png)
+
+## Run Script
+
+* Run your script code there.
+
+![Run](docs/images/run.png)
