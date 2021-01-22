@@ -37,70 +37,32 @@ connection.console.info(`Kinx server running in node ${process.version}`);
 let documents!: TextDocuments<TextDocument>;
 
 const keywords = [
-    "__END__",
-    "__LINE__",
-    "__FILE__",
-    "_import",
-    "_function",
-    "_class",
-    "_module",
-    "_namespace",
-    "ary",
-    "as",
-    "break",
-    "bin",
-    "big",
-    "class",
-    "catch",
-    "case",
-    "continue",
-    "const",
-    "do",
-    "default",
-    "dbl",
-    "else",
-    "enum",
-    "function",
-    "for",
-    "finally",
-    "false",
-    "if",
-    "in",
-    "import",
-    "isNull",
-    "isUndefined",
-    "isDefined",
-    "isInteger",
-    "isBigInteger",
-    "isNumber",
-    "isString",
-    "isDouble",
-    "isBinary",
-    "isFunction",
-    "isArray",
-    "isObject",
-    "int",
-    "module",
-    "mixin",
-    "null",
-    "new",
-    "native",
-    "namespace",
-    "obj",
-    "public",
-    "private",
-    "protected",
-    "return",
-    "switch",
-    "str",
-    "throw",
-    "try",
-    "true",
-    "using",
-    "undefined",
-    "var",
-    "while",
-    "yield",
+    // Module control
+    "__END__", "__LINE__", "__FILE__",
+    "_import", "_function", "_class", "_module", "_namespace", "using", "import",
+
+    // Namespace/Class/Module
+    "namespace", "class", "module", "public", "private", "mixin", /* "protected" */
+
+    // Flow control
+    "if", "else", "for", "in", "do", "while", "switch", "case", "default",
+    "break", "continue",
+    "try", "catch", "finally", "throw",
+    "function", "native", "return", "yield",
+
+    // Special values
+    "undefined", "null", "true", "false",
+
+    // Typename/Declaration/Instanciation/Cast
+    "int", "dbl", "bin", "big", "str", "ary", "obj",
+    "var", "const", "enum", "new", "as",
+
+    // Typecheck
+    "isNull", "isUndefined", "isDefined", "isInteger", "isBigInteger", "isNumber",
+    "isString", "isDouble", "isBinary", "isFunction", "isArray", "isObject",
+
+    // Predefined
+    "System", "SystemTimer", "Fiber", "File",
 ];
 
 const predefinedMethods: any = {
@@ -126,6 +88,9 @@ const predefinedMethods: any = {
         "getch", "geti", "putch",
         "peek", "print", "println",
         "rename", "unlink", "source",
+    ],
+    "SystemTimer": [
+        "restart", "elapsed",
     ],
 };
 
@@ -167,26 +132,29 @@ class KinxLanguageServer {
      * @param errmsg actual error message.
      */
     private normalCheck(diagnostics: Diagnostic[], lineNumber: number, srcbuf: string[], errmsg: string) {
+        if (srcbuf.length <= lineNumber) lineNumber = srcbuf.length - 1;
+        let start = 0, linelen = 1;
         let srcline = srcbuf[lineNumber];
         if (srcline != null) {
+            linelen = srcline.length;
             let re = new RegExp("[^\\s]");
             let result = re.exec(srcline);
             if (result != null) {
-                let start = result.index;
-                const range: Range = {
-                    start: { line: lineNumber, character: start < 0 ? 0 : start },
-                    end: { line: lineNumber, character: srcline.length },
-                };
-                const diagnostic: Diagnostic = Diagnostic.create(
-                    range,
-                    errmsg,
-                    DiagnosticSeverity.Error,
-                    "",
-                    "Compile Error",
-                );
-                diagnostics.push(diagnostic);
+                start = result.index;
             }
         }
+        const range: Range = {
+            start: { line: lineNumber, character: start < 0 ? 0 : start },
+            end: { line: lineNumber, character: linelen },
+        };
+        const diagnostic: Diagnostic = Diagnostic.create(
+            range,
+            errmsg,
+            DiagnosticSeverity.Error,
+            "",
+            "Compile Error",
+        );
+        diagnostics.push(diagnostic);
     }
 
     /**
@@ -503,7 +471,9 @@ class KinxLanguageServer {
         this.methods_[uri] = {};
         this.inheritMap_[uri] = {};
 
-        this.srcCode_[uri] = src.split(/\r?\n/);
+        this.srcCode_[uri] = src.split(/\r?\n/).map((e) => {
+            return e.replace(/"(\\"|[^"])+?"|'(\\'|[^'])+?'/g, (match) => '"' + (' '.repeat(match.length - 2)) + '"');
+        });
         const srcbuf = this.srcCode_[uri];
         this.varTypeMap_[uri] = this.makeDefaultVarMap(srcbuf);
 
@@ -664,18 +634,6 @@ class KinxLanguageServer {
                 { label: "str", kind: CompletionItemKind.TypeParameter, data: 4 },
             ];
             break;
-        case '_':
-            candidates = keywords.map((el: string) => ({
-                label: el,
-                kind: CompletionItemKind.Keyword,
-                data: ++index,
-            }));
-            candidates.concat(this.symbols_[uri].map((el: any) => ({
-                label: el.name,
-                kind: el.kind,
-                data: ++index,
-            })));
-            break;
         case '.':
             var token = this.getPreviousToken(srcline, position.character - 1);
             let list: string[] | null = predefinedMethods.hasOwnProperty(token + ":Class") ? predefinedMethods[token + ":Class"] : null;
@@ -719,11 +677,16 @@ class KinxLanguageServer {
             }
             break;
         default:
-            candidates = this.symbols_[uri].map((el: any) => ({
+            candidates = keywords.map((el: string) => ({
+                label: el,
+                kind: CompletionItemKind.Keyword,
+                data: ++index,
+            }));
+            candidates.concat(this.symbols_[uri].map((el: any) => ({
                 label: el.name,
                 kind: el.kind,
                 data: ++index,
-            }));
+            })));
             break;
         }
         return candidates;
