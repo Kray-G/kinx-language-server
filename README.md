@@ -1,6 +1,6 @@
-# kinx-language-server
+# Kinx VSCode Extension
 
-The Kinx Language Server for VSCode.
+The Kinx VSCode Extension with Language Server.
 
 # Getting Started
 
@@ -9,7 +9,7 @@ Now this product is under construction. It works with a debug mode only.
 1. Install Kinx.
 2. Add the path of Kinx to the PATH environment variable.
 3. Run VSCode under `kinx-language-server` directory.
-4. Press `[F5]` key to run it with a debug mode.
+4. Press <kbd>F5</kbd> key to run it with a debug mode.
 5. Load your Kinx source code.
 
 # Features
@@ -18,7 +18,7 @@ Now this product is under construction. It works with a debug mode only.
 * Detects a script error.
 * Detects an unused variable though it is defined.
 * Run the current script file on the VSCode.
-* Auto-completion.
+* Auto completion.
 
 ## Highlight
 
@@ -44,7 +44,7 @@ It is not an error, but you can check it easily.
 ## Run Script
 
 You can run your script code on the fly even without saving.
-It is easy because of clicking a icon or just pressing a <kbd>Ctrl-R</kbd> key.
+It is easy because of clicking an icon or just pressing a <kbd>Ctrl-R</kbd> key.
 
 ![Run](docs/images/run.png)
 
