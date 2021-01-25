@@ -35,6 +35,7 @@ const is_windows = process.platform === 'win32';
 const connection = createConnection(ProposedFeatures.all);
 connection.console.info(`Kinx server running in node ${process.version}`);
 let documents!: TextDocuments<TextDocument>;
+let kinxExePath = 'kinx';
 
 const keywords = [
     // Module control
@@ -479,7 +480,7 @@ class KinxLanguageServer {
 
         const symbolmap: any = {};
         let [filename, dirname, fileopt, diropt] = this.setOptions(url);
-        const buf = childProcess.execSync('kinx.exe -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 10000, input: src + '\n__END__' });
+        const buf = childProcess.execSync('"' + kinxExePath + '" -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 10000, input: src + '\n__END__' });
         const msgs = buf.toString();
         const msgbuf = msgs.split(/\r?\n/);
         for (let i = 0, l = msgbuf.length; i < l; ++i) {
@@ -696,6 +697,13 @@ class KinxLanguageServer {
 
 let server: KinxLanguageServer = new KinxLanguageServer();
 
+interface Settings {
+    kinx: KinxSettings;
+}
+interface KinxSettings {
+    execPath: string;
+}
+
 connection.onInitialize(() => {
     documents = new TextDocuments(TextDocument);
     setupDocumentsListeners();
@@ -731,6 +739,16 @@ connection.onInitialize(() => {
             // },
         },
     };
+});
+
+connection.onDidChangeConfiguration((change) => {
+    let settings = <Settings>change.settings;
+    if (settings.kinx != null) {
+        kinxExePath = settings.kinx.execPath || 'kinx';
+        console.log(settings.kinx);
+        console.log(settings.kinx.execPath);
+        console.log(kinxExePath);
+    }
 });
 
 connection.onCompletion((params: TextDocumentPositionParams): CompletionItem[] => {

@@ -2,16 +2,20 @@
 
 import * as path from "path";
 import * as child_process from "child_process";
-import { ExtensionContext, window as Window, commands as Commands, OutputChannel } from "vscode";
+import { ExtensionContext, window as Window, commands as Commands, OutputChannel, workspace as Workspace } from "vscode";
 import { LanguageClient, LanguageClientOptions, RevealOutputChannelOn, ServerOptions, TransportKind } from "vscode-languageclient";
 let client: LanguageClient;
 let outputChannel: OutputChannel;
 
 function runKinx(outputChannel: OutputChannel, filename: string, text: string) {
+    let settings = Workspace.getConfiguration("kinx");
+    let exepath = settings.get("execPath");
+    if (exepath === "") exepath = "kinx";
+
     let dirname = path.dirname(filename);
     let orgdir = process.cwd();
     process.chdir(dirname);
-    let kinx = child_process.exec("kinx -i", (error, stdout, stderr) => {
+    let kinx = child_process.exec('"' + exepath + '" -i', (error, stdout, stderr) => {
         if (stdout) {
             outputChannel.appendLine(stdout);
         }
@@ -73,11 +77,13 @@ export function activate(context: ExtensionContext): void {
         },
     };
     const clientOptions: LanguageClientOptions = {
-        documentSelector: [
-            {
-                scheme: "file",
-                language: "kinx",
-            }],
+        synchronize: {
+            configurationSection: 'kinx',
+        },
+        documentSelector: [{
+            scheme: "file",
+            language: "kinx",
+        }],
         diagnosticCollectionName: "Kinx Diagnositics",
         revealOutputChannelOn: RevealOutputChannelOn.Never,
     };
