@@ -4,6 +4,11 @@ The Kinx VSCode Extension with Language Server.
 
 # Getting Started
 
+> **Important**
+> You need the Kinx built from the latest source code because sometimes a lexer will have gone into an infinite loop.
+> If you get a Kinx process not to be ended, please kill it from a task manager.
+> This will be fix in the next release (0.20.0).
+
 Now this product is under construction. It works with a debug mode only.
 
 1. Install Kinx.
