@@ -233,7 +233,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control",
-					"match": "\\b(if|else|for|in|foreach|while|do|switch|case|default|yield|continue|break|try|catch|finally|return|throw)\\b"
+					"match": "\\b(if|else|for|in|foreach|while|do|switch|case|when|default|yield|continue|break|try|catch|finally|return|throw)\\b"
 				}
 			]
 		},
