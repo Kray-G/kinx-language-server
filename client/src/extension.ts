@@ -44,7 +44,9 @@ function runKinxArgsHook(filename: string, text: string, mode: string) {
         prompt: 'Input arguments for the script.',
         placeHolder: 'Input Script Arguments'
     }).then((value) => {
-        runKinxHook(filename, text, value ?? "", mode);
+        if (value != null) {
+            runKinxHook(filename, text, value, mode);
+        }
     });
 }
 
