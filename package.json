@@ -39,10 +39,16 @@
                 "command": "kinx.runRange",
                 "title": "Run Kinx Script (Range)",
                 "category": "Kinx",
-                "icon": {
-                    "light": "client/images/icons/light/runkinx.svg",
-                    "dark": "client/images/icons/dark/runkinx.svg"
-                }
+            },
+            {
+                "command": "kinx.runArgs",
+                "title": "Run Kinx Script w/ args",
+                "category": "Kinx",
+            },
+            {
+                "command": "kinx.runRangeArgs",
+                "title": "Run Kinx Script w/ args (Range)",
+                "category": "Kinx",
             }
         ],
         "menus": {
@@ -63,6 +69,18 @@
                 "command": "kinx.runRange",
                 "key": "ctrl+shift+r",
                 "mac": "cmd+shift+r",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "kinx.runArgs",
+                "key": "ctrl+e",
+                "mac": "cmd+e",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "kinx.runRangeArgs",
+                "key": "ctrl+shift+e",
+                "mac": "cmd+shift+e",
                 "when": "editorTextFocus"
             }
         ],

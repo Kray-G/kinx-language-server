@@ -2,12 +2,12 @@
 
 import * as path from "path";
 import * as child_process from "child_process";
-import { ExtensionContext, window as Window, commands as Commands, OutputChannel, workspace as Workspace } from "vscode";
+import { ExtensionContext, window as Window, commands as Commands, OutputChannel, workspace as Workspace, TextEditor } from "vscode";
 import { LanguageClient, LanguageClientOptions, RevealOutputChannelOn, ServerOptions, TransportKind } from "vscode-languageclient";
 let client: LanguageClient;
 let outputChannel: OutputChannel;
 
-function runKinx(outputChannel: OutputChannel, filename: string, text: string) {
+function runKinx(outputChannel: OutputChannel, filename: string, text: string, value: string) {
     let settings = Workspace.getConfiguration("kinx");
     let exepath = settings.get("execPath");
     if (exepath === "") exepath = "kinx";
@@ -15,7 +15,7 @@ function runKinx(outputChannel: OutputChannel, filename: string, text: string) {
     let dirname = path.dirname(filename);
     let orgdir = process.cwd();
     process.chdir(dirname);
-    let kinx = child_process.exec('"' + exepath + '" -i', (_error, stdout, stderr) => {
+    let kinx = child_process.exec('"' + exepath + '" -i kinx ' + value, (_error, stdout, stderr) => {
         if (stdout) {
             outputChannel.appendLine(stdout);
         }
@@ -29,37 +29,54 @@ function runKinx(outputChannel: OutputChannel, filename: string, text: string) {
     process.chdir(orgdir);
 }
 
-function runKinxHook(filename: string, text: string, mode: string) {
+function runKinxHook(filename: string, text: string, args: string, mode: string) {
     if (outputChannel == null) {
         outputChannel = Window.createOutputChannel("Kinx Output");
     }
     outputChannel.show(true);
     outputChannel.appendLine("[" + mode + "] Started at " + new Date(Date.now()).toString());
     outputChannel.appendLine("----");
-    runKinx(outputChannel, filename, text);
+    runKinx(outputChannel, filename, text, args ?? "");
+}
+
+function runKinxArgsHook(filename: string, text: string, mode: string) {
+    Window.showInputBox({
+        prompt: 'Input arguments for the script.',
+        placeHolder: 'Input Script Arguments'
+    }).then((value) => {
+        runKinxHook(filename, text, value ?? "", mode);
+    });
+}
+
+function runScript(editor: TextEditor | undefined, selmode: boolean, args: boolean) {
+    if (editor != null) {
+        let doc = editor.document;
+        let filename = doc?.fileName;
+        if (filename != null) {
+            let text = selmode ? doc?.getText(editor.selection) : doc?.getText();
+            if (text != null) {
+                if (args) {
+                    runKinxArgsHook(filename, text, selmode ? "Range" : "Full");
+                } else {
+                    runKinxHook(filename, text, "", selmode ? "Range" : "Full");
+                }
+            }
+        }
+    }
 }
 
 export function activate(context: ExtensionContext): void {
     context.subscriptions.push(Commands.registerCommand('kinx.run', () => {
-        let doc = Window.activeTextEditor?.document;
-        let filename = doc?.fileName;
-        if (filename != null) {
-            let text = doc?.getText();
-            if (text != null) {
-                runKinxHook(filename, text, "Full");
-            }
-        }
+        runScript(Window.activeTextEditor, false, false);
     }));
     context.subscriptions.push(Commands.registerCommand('kinx.runRange', () => {
-        let editor = Window.activeTextEditor;
-        let doc = editor?.document;
-        let filename = doc?.fileName;
-        if (filename != null) {
-            let text = doc?.getText(editor?.selection);
-            if (text != null) {
-                runKinxHook(filename, text, "Range");
-            }
-        }
+        runScript(Window.activeTextEditor, true, false);
+    }));
+    context.subscriptions.push(Commands.registerCommand('kinx.runArgs', () => {
+        runScript(Window.activeTextEditor, false, true);
+    }));
+    context.subscriptions.push(Commands.registerCommand('kinx.runRangeArgs', () => {
+        runScript(Window.activeTextEditor, true, true);
     }));
 
     const serverModule = context.asAbsolutePath(path.join("server", "out", "server.js"));
