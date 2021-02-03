@@ -10,7 +10,10 @@ contributing.md
 .azure-pipelines.yml
 shared.webpack.config.js
 client/**
+!client/images/**
 !client/out/extension.js
+!client/syntaxes/**
+!client/kinx-language-configuration.json
 server/**
 !server/out/server.js
 playgrounds/**
