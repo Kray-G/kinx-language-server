@@ -259,7 +259,14 @@ class KinxLanguageServer {
     private searchName(symbolmap: any, text: string, srcbuf: string[], lineNumber: number, checkDup: boolean) {
         let srcline = srcbuf[lineNumber];
         if (srcline != null) {
-            let line = srcline.replace(/"(\\"|[^"])+?"|'(\\'|[^'])+?'/g, (match) => ' '.repeat(match.length));
+            let line = srcline.replace(/"(\\"|[^"])+?"|'(\\'|[^'])+?'/g, (match) => {
+                return match.replace(/([^%]+)|(%\{[^\}]+\})/g, (str) => {
+                    if (str.charAt(0) == '%') {
+                        return str;
+                    }
+                    return ' '.repeat(str.length);
+                });
+            });
             let re = new RegExp("\\b" + text.replace(/\+|\||\*|\[|\]/, "\\$1") + "\\b", 'g');
             let found;
             while ((found = re.exec(line)) != null) {
@@ -472,9 +479,7 @@ class KinxLanguageServer {
         this.methods_[uri] = {};
         this.inheritMap_[uri] = {};
 
-        this.srcCode_[uri] = src.split(/\r?\n/).map((e) => {
-            return e.replace(/"(\\"|[^"])+?"|'(\\'|[^'])+?'/g, (match) => '"' + (' '.repeat(match.length - 2)) + '"');
-        });
+        this.srcCode_[uri] = src.split(/\r?\n/);
         const srcbuf = this.srcCode_[uri];
         this.varTypeMap_[uri] = this.makeDefaultVarMap(srcbuf);
 
