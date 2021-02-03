@@ -38,17 +38,17 @@
             {
                 "command": "kinx.runRange",
                 "title": "Run Kinx Script (Range)",
-                "category": "Kinx",
+                "category": "Kinx"
             },
             {
                 "command": "kinx.runArgs",
                 "title": "Run Kinx Script w/ args",
-                "category": "Kinx",
+                "category": "Kinx"
             },
             {
                 "command": "kinx.runRangeArgs",
                 "title": "Run Kinx Script w/ args (Range)",
-                "category": "Kinx",
+                "category": "Kinx"
             }
         ],
         "menus": {
