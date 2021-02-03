@@ -237,6 +237,7 @@ class KinxLanguageServer {
     private getKindName(name: string) {
         switch (name) {
         case "var":      return "variable";
+        case "const":    return "const";
         case "class":    return "class";
         case "module":   return "class";
         case "function": return "function";
@@ -338,7 +339,7 @@ class KinxLanguageServer {
             }
             return;
         }
-        result = message.match(/#define\t(var|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+))?/);
+        result = message.match(/#define\t(var|const|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+))?/);
         if (result != null) {
             let kind = this.getKindName(result[1]);
             let text = result[2];
@@ -360,7 +361,7 @@ class KinxLanguageServer {
                             end: { line: lineNumber, character: end } } }
                     };
                     tokens.def.push(data);
-                    if (kind !== "class") {
+                    if (kind !== "class" && kind !== "const") {
                         tokens.count[text+":"+lineNumber] = {
                             count: 0,
                             data: data,
