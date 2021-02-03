@@ -15,35 +15,28 @@ function runKinx(outputChannel: OutputChannel, filename: string, text: string) {
     let dirname = path.dirname(filename);
     let orgdir = process.cwd();
     process.chdir(dirname);
-    let kinx = child_process.exec('"' + exepath + '" -i', (error, stdout, stderr) => {
+    let kinx = child_process.exec('"' + exepath + '" -i', (_error, stdout, stderr) => {
         if (stdout) {
             outputChannel.appendLine(stdout);
         }
         if (stderr) {
             outputChannel.appendLine(stderr);
         }
-        outputChannel.appendLine("----------------------------------------------------------------");
-        if (error) {
-            outputChannel.appendLine("Exit code = " + error.code);
-        } else {
-            outputChannel.appendLine("Exit code = 0");
-        }
-        outputChannel.appendLine("");
     });
-    let srccode = "var tmr = new SystemTimer(); try { " +
-                text +
-                "} catch (e) {" +
-                "System.println('>>> Exception Occurred'); " +
-                "System.println(e.type() + ': ' + e.what()); " +
-                "e.printStackTrace(); " +
-                "} finally {" +
-                "System.println('\n----------------------------------------------------------------'); " +
-                "System.println('Elapsed(in seconds): %f' % tmr.elapsed()); " +
-                "}" +
-                "\n__END__";
+    let srccode = "var tmr = new SystemTimer(); try { " + text + " } finally { System.println('----\nelapsed: %f' % tmr.elapsed()); }\n__END__";
     kinx.stdin?.write(srccode);
     kinx.stdin?.end();
     process.chdir(orgdir);
+}
+
+function runKinxHook(filename: string, text: string, mode: string) {
+    if (outputChannel == null) {
+        outputChannel = Window.createOutputChannel("Kinx Output");
+    }
+    outputChannel.show(true);
+    outputChannel.appendLine("[" + mode + "] Started at " + new Date(Date.now()).toString());
+    outputChannel.appendLine("----");
+    runKinx(outputChannel, filename, text);
 }
 
 export function activate(context: ExtensionContext): void {
@@ -53,15 +46,18 @@ export function activate(context: ExtensionContext): void {
         if (filename != null) {
             let text = doc?.getText();
             if (text != null) {
-                if (outputChannel == null) {
-                    outputChannel = Window.createOutputChannel("Kinx Output");
-                }
-                outputChannel.show(true);
-                outputChannel.appendLine("================================================================");
-                outputChannel.appendLine("Started at " + new Date(Date.now()).toString());
-                outputChannel.appendLine("");
-                outputChannel.appendLine("---- R E S U L T -----------------------------------------------");
-                runKinx(outputChannel, filename, text);
+                runKinxHook(filename, text, "Full");
+            }
+        }
+    }));
+    context.subscriptions.push(Commands.registerCommand('kinx.runRange', () => {
+        let editor = Window.activeTextEditor;
+        let doc = editor?.document;
+        let filename = doc?.fileName;
+        if (filename != null) {
+            let text = doc?.getText(editor?.selection);
+            if (text != null) {
+                runKinxHook(filename, text, "Range");
             }
         }
     }));
