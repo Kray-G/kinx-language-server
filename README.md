@@ -5,7 +5,7 @@ The Kinx VSCode Extension with Language Server.
 # Getting Started
 
 > **Important**
-> This extension requires the Kinx version 0.20.1 or above.
+> This extension requires the Kinx version 0.20.1 or above is installed.
 
 Now this product is under construction. It works with a debug mode only.
 
@@ -17,30 +17,37 @@ Now this product is under construction. It works with a debug mode only.
 
 # Features
 
-* Highlight a source code.
-* Detects a script error.
-* Detects an unused variable though it is defined.
-* Run the current script file on the VSCode.
-* Auto completion.
+* Code Highlight
+* Problem Detection
+  * Detects erros and warnings.
+* Run Script
+  * Run the current script file on the VSCode.
+  * Run the script only with the range of selection.
+* Go to Definition
+* Auto completion
 
-## Highlight
+## Code Highlight
 
 Your source code will be displayed with a highlight.
 It will be suited with your theme color.
 
 ![Highlight](docs/images/highlight.png)
 
-## Error
+## Problem Detection
+
+### Error
 
 Compile Error will be detected as an error.
 You can find and fix it easily.
 
 ![Error](docs/images/error.png)
 
-## Warning
+### Warning
 
-Unused variables are detected as a warning.
-It is not an error, but you can check it easily.
+Warning is not an error, but you can check it easily.
+Currently only the following warning is supported.
+
+* Unused Variables
 
 ![Warning](docs/images/warning.png)
 
@@ -56,7 +63,14 @@ There are 2 modes to run the script.
 
 ![Run](docs/images/run.png)
 
-## Auto Complete
+## Go to Definition
+
+Right click on a symbol and select `Go to Definition`, and a cursor will jump to the location where the symbol you selected is defined.
+Even if the definition is in another file, the source code will be automatically opened and jump to the location.
+
+![GotoDefinition](docs/images/gotodef.png)
+
+## Auto Completion
 
 Auto completion is available.
 It suggests public methods collected from the class automatically, and it will also include methods on a base class.
