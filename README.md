@@ -49,6 +49,11 @@ It is not an error, but you can check it easily.
 You can run your script code on the fly even without saving.
 It is easy because of clicking an icon or just pressing a <kbd>Ctrl-R</kbd> key.
 
+There are 2 modes to run the script.
+
+1. Press <kbd>Ctrl-R</kbd> to run the whole script.
+2. Press <kbd>Ctrl-Shift-R</kbd> to run the selected script text only.
+
 ![Run](docs/images/run.png)
 
 ## Auto Complete
