@@ -95,35 +95,115 @@ const predefinedMethods: any = {
     ],
 };
 
-const isUpperCase = (c: string) => {
-    return /^[A-Z]+$/g.test(c)
-};
-
-class KinxLanguageServer {
-
-    private tokenBuffer_: any;
-    private semanticCheck_: any;
-    private srcCode_: any;
-    private symbols_: any;
-    private methods_: any;
-    private varTypeMap_: any;
-    private inheritMap_: any;
-    private scope_: any[];
-
-    constructor() {
-        this.tokenBuffer_ = {};
-        this.semanticCheck_ = {};
-        this.srcCode_ = {};
-        this.symbols_ = {};
-        this.methods_ = {};
-        this.varTypeMap_ = {};
-        this.inheritMap_ = {};
-        this.scope_ = [];
+class KinxUtility {
+    public isUpperCase(c: string) {
+        return /^[A-Z]+$/g.test(c);
     }
 
-    public getSemanticCheckedTokens(uri: string) {
-        return this.semanticCheck_[uri];
+    public checkFilePath(dirname: string, candidate: string) {
+        let fspath = path.join(dirname, candidate);
+        try {
+            if (fs.existsSync(fspath)) {
+                return fspath;
+            }
+        } catch {
+            ;
+        }
+        return candidate;
     }
+
+    /**
+     * Translate the name to the kind.
+     * @param name the name.
+     */
+    public getKindName(name: string) {
+        switch (name) {
+        case "var":      return "variable";
+        case "const":    return "const";
+        case "class":    return "class";
+        case "module":   return "class";
+        case "function": return "function";
+        case "public":   return "function";
+        case "private":  return "function";
+        case "native":   return "function";
+        default:
+            ;
+        }
+        return "unknown";
+    }
+
+    public makeDefaultVarMap(srcbuf: string[]) {
+        let candidate: any = {
+            "$stdin":  { "File": true },
+            "$stdout": { "File": true },
+            "$stderr": { "File": true },
+        };
+        for (let i = 0, l = srcbuf.length; i < l; ++i) {
+            let result = srcbuf[i].match(/([$_a-zA-Z0-9]+)\s*=\s*new\s+(?:[$_a-zA-Z0-9]+\.)*([$_a-zA-Z0-9]+)\(/);
+            if (result != null) {
+                let varname = result[1];
+                let typename = result[2];
+                candidate[varname] ??= {};
+                candidate[varname][typename] = true;
+            }
+        }
+        return candidate;
+    }
+
+    /**
+     * Search the text in the source code.
+     * @param symbolmap check to duplicate the text.
+     * @param text the text to be searched.
+     * @param srcbuf source code buffer.
+     * @param lineNumber line number of error.
+     */
+    public searchName(symbolmap: any, text: string, srcbuf: string[], lineNumber: number, checkDup: boolean) {
+        let srcline = srcbuf[lineNumber];
+        if (srcline != null) {
+            let line = srcline.replace(/"(\\"|[^"])+?"|'(\\'|[^'])+?'/g, (match) => {
+                return match.replace(/([^%]+)|(%\{[^\}]+\})/g, (str) => {
+                    if (str.charAt(0) == '%') {
+                        return str;
+                    }
+                    return ' '.repeat(str.length);
+                });
+            });
+            let re = new RegExp("\\b" + text.replace(/\+|\||\*|\[|\]/, "\\$1") + "\\b", 'g');
+            let found;
+            while ((found = re.exec(line)) != null) {
+                let index = found.index;
+                if (!checkDup) {
+                    return [index, index + text.length];
+                }
+                const key = text + ":" + lineNumber + ":" + index;
+                if (symbolmap[key] == null) {
+                    symbolmap[key] = true;
+                    return [index, index + text.length];
+                }
+            }
+        }
+        return [-1, -1];
+    }
+
+    /**
+     * Parameter analysis
+     * @param uri uri string
+     */
+    public setOptions(uristring: string) {
+        let fspath = URI.parse(uristring).fsPath;
+        let filename = path.basename(fspath);
+        let dirname = path.dirname(fspath);
+        let diropt = '--workdir=' + dirname;
+        let fileopt = '--filename=' + filename;
+        if (is_windows) {
+            fileopt = '"' + fileopt + '"';
+            diropt = '"' + diropt + '"';
+        }
+        return [filename, dirname, fileopt, diropt];
+    }
+}
+
+class KinxDiagnosticsChecker {
 
     /**
      * Normal error message analysis.
@@ -132,7 +212,7 @@ class KinxLanguageServer {
      * @param srcbuf source code buffer.
      * @param errmsg actual error message.
      */
-    private normalCheck(diagnostics: Diagnostic[], lineNumber: number, srcbuf: string[], errmsg: string) {
+    public normalCheck(diagnostics: Diagnostic[], lineNumber: number, srcbuf: string[], errmsg: string) {
         if (srcbuf.length <= lineNumber) lineNumber = srcbuf.length - 1;
         let start = 0, linelen = 1;
         let srcline = srcbuf[lineNumber];
@@ -166,7 +246,7 @@ class KinxLanguageServer {
      * @param srcbuf source code buffer.
      * @param errmsg actual error message.
      */
-    private usingCheck(diagnostics: Diagnostic[], symbolmap: any, filename: string, srcbuf: string[], errmsg: string) {
+    public usingCheck(diagnostics: Diagnostic[], symbolmap: any, filename: string, srcbuf: string[], errmsg: string) {
         const usingfile = path.basename(filename).replace(/\.[^/.]+$/, "");
         for (let i = 0, l = srcbuf.length; i < l; ++i) {
             let srcline = srcbuf[i];
@@ -203,7 +283,7 @@ class KinxLanguageServer {
      * @param srcbuf source code buffer.
      * @param errmsg actual error message.
      */
-    private symbolCheck(diagnostics: Diagnostic[], symbolmap: any, symbol: string, lineNumber: number, srcbuf: string[], errmsg: string) {
+    public symbolCheck(diagnostics: Diagnostic[], symbolmap: any, symbol: string, lineNumber: number, srcbuf: string[], errmsg: string) {
         let srcline = srcbuf[lineNumber];
         if (srcline != null) {
             let re = new RegExp("\\b" + symbol.replace(/\+|\||\*|\[|\]/, "\\$1") + "\\b", 'g');
@@ -230,71 +310,40 @@ class KinxLanguageServer {
         }
     }
 
-    /**
-     * Translate the name to the kind.
-     * @param name the name.
-     */
-    private getKindName(name: string) {
-        switch (name) {
-        case "var":      return "variable";
-        case "const":    return "const";
-        case "class":    return "class";
-        case "module":   return "class";
-        case "function": return "function";
-        case "public":   return "function";
-        case "private":  return "function";
-        case "native":   return "function";
-        default:
-            ;
-        }
-        return "unknown";
+}
+
+class KinxLanguageServer {
+
+    private tokenBuffer_: any;
+    private semanticCheck_: any;
+    private srcCode_: any;
+    private symbols_: any;
+    private methods_: any;
+    private varTypeMap_: any;
+    private inheritMap_: any;
+    private scope_: any[];
+    private args_: any;
+    private curArgs_: any;
+    private checker_: KinxDiagnosticsChecker;
+    private utils_: KinxUtility;
+
+    constructor() {
+        this.tokenBuffer_ = {};
+        this.semanticCheck_ = {};
+        this.srcCode_ = {};
+        this.symbols_ = {};
+        this.methods_ = {};
+        this.varTypeMap_ = {};
+        this.inheritMap_ = {};
+        this.scope_ = [];
+        this.args_ = {};
+        this.curArgs_ = null;
+        this.checker_ = new KinxDiagnosticsChecker();
+        this.utils_ = new KinxUtility();
     }
 
-    /**
-     * Search the text in the source code.
-     * @param symbolmap check to duplicate the text.
-     * @param text the text to be searched.
-     * @param srcbuf source code buffer.
-     * @param lineNumber line number of error.
-     */
-    private searchName(symbolmap: any, text: string, srcbuf: string[], lineNumber: number, checkDup: boolean) {
-        let srcline = srcbuf[lineNumber];
-        if (srcline != null) {
-            let line = srcline.replace(/"(\\"|[^"])+?"|'(\\'|[^'])+?'/g, (match) => {
-                return match.replace(/([^%]+)|(%\{[^\}]+\})/g, (str) => {
-                    if (str.charAt(0) == '%') {
-                        return str;
-                    }
-                    return ' '.repeat(str.length);
-                });
-            });
-            let re = new RegExp("\\b" + text.replace(/\+|\||\*|\[|\]/, "\\$1") + "\\b", 'g');
-            let found;
-            while ((found = re.exec(line)) != null) {
-                let index = found.index;
-                if (!checkDup) {
-                    return [index, index + text.length];
-                }
-                const key = text + ":" + lineNumber + ":" + index;
-                if (symbolmap[key] == null) {
-                    symbolmap[key] = true;
-                    return [index, index + text.length];
-                }
-            }
-        }
-        return [-1, -1];
-    }
-
-    private checkFilePath(dirname: string, candidate: string) {
-        let fspath = path.join(dirname, candidate);
-        try {
-            if (fs.existsSync(fspath)) {
-                return fspath;
-            }
-        } catch {
-            ;
-        }
-        return candidate;
+    public getSemanticCheckedTokens(uri: string) {
+        return this.semanticCheck_[uri];
     }
 
     private setSymbolInfo(uri: string, text: string, type: string) {
@@ -303,7 +352,7 @@ class KinxLanguageServer {
             this.methods_[uri][scope] ??= {}
             this.methods_[uri][scope][text] = { kind: CompletionItemKind.Method };
         } else {
-            this.symbols_[uri][text] = { kind: isUpperCase(text.charAt(0)) ? CompletionItemKind.Class : CompletionItemKind.Variable };
+            this.symbols_[uri][text] = { kind: this.utils_.isUpperCase(text.charAt(0)) ? CompletionItemKind.Class : CompletionItemKind.Variable };
         }
     }
 
@@ -329,19 +378,35 @@ class KinxLanguageServer {
         if (result != null) {
             let isEnd = result[1] === "end";
             let isClass = result[2] === "class";
+            let name = result[3];
             if (isClass) {
                 if (isEnd) {
                     this.scope_.pop();
                 } else {
-                    let name = result[3];
                     this.scope_.push({ name: name });
+                }
+            }
+            if (name != null) {
+                if (isEnd) {
+                    this.curArgs_ = null;
+                } else {
+                    let scope = this.scope_.join('#');
+                    this.args_[scope] ??= {};
+                    this.args_[scope][name] = this.curArgs_ = { args: [], isClass: isClass };
                 }
             }
             return;
         }
+        if (this.curArgs_ != null) {
+            result = message.match(/#arg\t([0-9]+)\t([^\t]+)/);
+            if (result != null) {
+                let index = parseInt(result[1]);
+                this.curArgs_.args[index] = { typename: result[2] };
+            }
+        }
         result = message.match(/#define\t(var|const|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+))?/);
         if (result != null) {
-            let kind = this.getKindName(result[1]);
+            let kind = this.utils_.getKindName(result[1]);
             let text = result[2];
             let file = result[3];
             let lineNumber = parseInt(result[4]) - 1;
@@ -352,10 +417,10 @@ class KinxLanguageServer {
                 return;
             }
             if (filename === file) {
-                let [start, end] = this.searchName(symbolmap, text, srcbuf, lineNumber, true);
+                let [start, end] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber, true);
                 if (start >= 0 && end >= 0) {
                     let data = {
-                        kind: kind, text: text, typename: kind === "class" ? text : typename,
+                        kind: kind, text: text, typename: typename,
                         location: { uri: URI.file(filename).toString(), range: {
                             start: { line: lineNumber, character: start },
                             end: { line: lineNumber, character: end } } }
@@ -380,22 +445,35 @@ class KinxLanguageServer {
             }
             return;
         }
-        result = message.match(/#ref\tvar\t([^\t]+)\t([^\t]+)\t(\d+)\t([^\t]+)\t(\d+)/);
+        result = message.match(/#ref\t(var|key)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+)\t(\d+)(?:\t([^\t]+))?)?/);
         if (result != null) {
             let filepath = path.join(dirname, filename);
-            let kind = "variable";
-            let text = result[1];
-            let file1 = result[2];
-            let lineNumber1 = parseInt(result[3]) - 1;
-            let file2 = result[4];
-            let lineNumber2 = parseInt(result[5]) - 1;
+            let kind = result[1] === "var" ? "variable" : "keyname";
+            let text = result[2];
+            let file1 = result[3];
+            let lineNumber1 = parseInt(result[4]) - 1;
             if (filename === file1) {
-                let [start1, end1] = this.searchName(symbolmap, text, srcbuf, lineNumber1, true);
+                let typename = result[7];
+                let [start1, end1] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber1, true);
+                if (kind === "keyname") {
+                    let data = {
+                        kind: kind, text: text, typename: typename,
+                        location: { uri: URI.file(filepath).toString(), range: {
+                            start: { line: lineNumber1, character: start1 },
+                            end: { line: lineNumber1, character: end1 } } }
+                    };
+                    tokens.ref.push(data);
+                    return;
+                }
+
+                let file2 = result[5];
+                let lineNumber2 = parseInt(result[6]) - 1;
                 if (filename === file2) {
-                    let [start2, end2] = this.searchName(symbolmap, text, srcbuf, lineNumber2, false);
+                    let [start2, end2] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber2, false);
                     if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
+                        let def = tokens.count[text+":"+lineNumber2];
                         let data = {
-                            kind: kind, text: text,
+                            kind: kind, text: text, typename: typename,
                             location: { uri: URI.file(filepath).toString(), range: {
                                 start: { line: lineNumber1, character: start1 },
                                 end: { line: lineNumber1, character: end1 } } },
@@ -404,18 +482,18 @@ class KinxLanguageServer {
                                 end: { line: lineNumber2, character: end2 } } }
                         };
                         tokens.ref.push(data);
-                        if (tokens.count[text+":"+lineNumber2] != null) {
-                            tokens.count[text+":"+lineNumber2].count++;
+                        if (def != null) {
+                            def.count++;
                         }
                     }
                 } else {
-                    file2 = this.checkFilePath(dirname, result[4]);
+                    file2 = this.utils_.checkFilePath(dirname, file2);
                     let code = fs.readFileSync(file2, "utf8");
                     let codebuf = code.split(/\r?\n/);
-                    let [start2, end2] = this.searchName(symbolmap, text, codebuf, lineNumber2, false);
+                    let [start2, end2] = this.utils_.searchName(symbolmap, text, codebuf, lineNumber2, false);
                     if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                         let data = {
-                            kind: kind, text: text,
+                            kind: kind, text: text, typename: typename,
                             location: { uri: URI.file(filepath).toString(), range: {
                                 start: { line: lineNumber1, character: start1 },
                                 end: { line: lineNumber1, character: end1 } } },
@@ -433,41 +511,6 @@ class KinxLanguageServer {
     }
 
     /**
-     * Parameter analysis
-     * @param uri uri string
-     */
-    private setOptions(uristring: string) {
-        let fspath = URI.parse(uristring).fsPath;
-        let filename = path.basename(fspath);
-        let dirname = path.dirname(fspath);
-        let diropt = '--workdir=' + dirname;
-        let fileopt = '--filename=' + filename;
-        if (is_windows) {
-            fileopt = '"' + fileopt + '"';
-            diropt = '"' + diropt + '"';
-        }
-        return [filename, dirname, fileopt, diropt];
-    }
-
-    private makeDefaultVarMap(srcbuf: string[]) {
-        let candidate: any = {
-            "$stdin":  { "File": true },
-            "$stdout": { "File": true },
-            "$stderr": { "File": true },
-        };
-        for (let i = 0, l = srcbuf.length; i < l; ++i) {
-            let result = srcbuf[i].match(/([$_a-zA-Z0-9]+)\s*=\s*new\s+(?:[$_a-zA-Z0-9]+\.)*([$_a-zA-Z0-9]+)\(/);
-            if (result != null) {
-                let varname = result[1];
-                let typename = result[2];
-                candidate[varname] ??= {};
-                candidate[varname][typename] = true;
-            }
-        }
-        return candidate;
-    }
-
-    /**
      * Do compile the code
      * @param src source code string
      */
@@ -482,10 +525,10 @@ class KinxLanguageServer {
 
         this.srcCode_[uri] = src.split(/\r?\n/);
         const srcbuf = this.srcCode_[uri];
-        this.varTypeMap_[uri] = this.makeDefaultVarMap(srcbuf);
+        this.varTypeMap_[uri] = this.utils_.makeDefaultVarMap(srcbuf);
 
         const symbolmap: any = {};
-        let [filename, dirname, fileopt, diropt] = this.setOptions(url);
+        let [filename, dirname, fileopt, diropt] = this.utils_.setOptions(url);
         const buf = childProcess.execSync('"' + kinxExePath + '" -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 10000, input: src + '\n__END__' });
         const msgs = buf.toString();
         const msgbuf = msgs.split(/\r?\n/);
@@ -501,17 +544,17 @@ class KinxLanguageServer {
                 if (result != null) {
                     let file = result[1];
                     if (file === filename) {
-                        this.normalCheck(diagnostics, parseInt(result[2]) - 1, srcbuf, errmsg);
+                        this.checker_.normalCheck(diagnostics, parseInt(result[2]) - 1, srcbuf, errmsg);
                     } else {
-                        this.usingCheck(diagnostics, symbolmap, file, srcbuf, errmsg);
+                        this.checker_.usingCheck(diagnostics, symbolmap, file, srcbuf, errmsg);
                     }
                 }
             } else {
                 let file = result[2];
                 if (file === filename) {
-                    this.symbolCheck(diagnostics, symbolmap, result[1], parseInt(result[3]) - 1, srcbuf, errmsg);
+                    this.checker_.symbolCheck(diagnostics, symbolmap, result[1], parseInt(result[3]) - 1, srcbuf, errmsg);
                 } else {
-                    this.usingCheck(diagnostics, symbolmap, file, srcbuf, errmsg);
+                    this.checker_.usingCheck(diagnostics, symbolmap, file, srcbuf, errmsg);
                 }
             }
         }
@@ -565,6 +608,40 @@ class KinxLanguageServer {
                 }
             }
         }
+    }
+
+    private getHoverInfoOf(locations: any[], position: Position) {
+        let line = position.line;
+        let character = position.character;
+        for (let i = 0, l = locations.length; i < l; ++i) {
+            let data = locations[i];
+            let location = data.location;
+            let range = location.range;
+            if (range.start.line === line) {
+                if (range.start.character <= character && character <= range.end.character && data.text != null) {
+                    let typename = data.typename != null ? data.typename : "Any";
+                    if (data.text == typename) {
+                        return {
+                            contents: { language: "kinx", value: "class " + typename },
+                            range: range
+                        };
+                    }
+                    return {
+                        contents: { language: "kinx", value: data.text + " as " + typename },
+                        range: range
+                    };
+                }
+            }
+        }
+        return undefined;
+    }
+
+    public getHoverInfo(uri: string, position: Position) {
+        let info = this.getHoverInfoOf(this.tokenBuffer_[uri].ref, position);
+        if (info != null) {
+            return info;
+        }
+        return this.getHoverInfoOf(this.tokenBuffer_[uri].def, position);
     }
 
     private getPreviousToken(srcline: string, end: number) {
@@ -717,6 +794,7 @@ connection.onInitialize(() => {
     return {
         capabilities: {
             definitionProvider: true,
+            hoverProvider: true,
             completionProvider: {
                 resolveProvider: false,
                 triggerCharacters: [ '.', ':' ]
@@ -774,6 +852,10 @@ connection.onRequest("textDocument/semanticTokens", (params) => {
 
 connection.onRequest("textDocument/definition", (params) => {
     return server.getDefinition(params.textDocument.uri, params.position);
+});
+
+connection.onRequest("textDocument/hover", (params) => {
+    return server.getHoverInfo(params.textDocument.uri, params.position);
 });
 
 function setupDocumentsListeners() {
