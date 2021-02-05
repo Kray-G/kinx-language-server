@@ -4,8 +4,9 @@ The Kinx VSCode Extension with Language Server.
 
 # Getting Started
 
-> **Important**
+> **Important**  
 > This extension requires the Kinx version 0.20.1 or above is installed.
+> For some features, Kinx version 0.21.0 or above is required.
 
 Now this product is under construction. It works with a debug mode only.
 
@@ -25,8 +26,8 @@ Now this product is under construction. It works with a debug mode only.
   * Run the script only with the range of selection.
 * Go to Definition
 * Auto completion
-* Hover Information
-* Argument Type Check
+* Hover Information     ***(0.21.0 or above)***
+* Argument Type Check   ***(0.21.0 or above)***
 
 ## Code Highlight
 
