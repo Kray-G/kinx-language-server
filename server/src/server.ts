@@ -185,6 +185,29 @@ class KinxUtility {
         return [-1, -1];
     }
 
+    public checkTypeArray(diagnostics: Diagnostic[], defs: string[], refs: string[], range: Range) {
+        let len1 = defs.length;
+        let len2 = refs.length;
+        let len = len1 < len2 ? len1 : len2;
+        for (let i = 0; i < len; ++i) {
+            if (defs[i] === "-" || defs[i] === "any" || refs[i] === "-" || refs[i] === "any") {
+                continue;
+            }
+            if (defs[i] != refs[i]) {
+                let nth = i === 0 ? "1st" : (i === 1 ? "2nd" : (i === 2 ? "3rd" : ((i+1)+"th")));
+                const diagnostic: Diagnostic = Diagnostic.create(
+                    range,
+                    "The " + nth + " argument type should be " + defs[i] + ", but it is " + refs[i] + ".",
+                    DiagnosticSeverity.Error,
+                    "",
+                    "Semantic Check",
+                );
+                diagnostics.push(diagnostic);
+            }
+        }
+        return true;
+    }
+
     /**
      * Parameter analysis
      * @param uri uri string
@@ -200,6 +223,38 @@ class KinxUtility {
             diropt = '"' + diropt + '"';
         }
         return [filename, dirname, fileopt, diropt];
+    }
+
+    public getPreviousToken(srcline: string, end: number) {
+        let re = new RegExp("[$_a-zA-Z][$_a-zA-Z0-9]*", 'g');
+        let found;
+        while ((found = re.exec(srcline)) != null) {
+            let last = found.index + found[0].length;
+            if (last == end) {
+                return found[0];
+            }
+        }
+        return "";
+    }
+
+    public getTypenameOnDecl(defs: any[], name: string, line: number) {
+        let index = -1;
+        if (defs != null) {
+            for (let i = 0, l = defs.length; i < l; ++i) {
+                let data = defs[i];
+                if (data.text === name) {
+                    let range = data.location.range;
+                    if (index >= 0 && range.start.line > line) {
+                        break;
+                    }
+                    index = i;
+                }
+            }
+        }
+        if (index >= 0) {
+            return defs[index].typename;
+        }
+        return null;
     }
 }
 
@@ -346,13 +401,18 @@ class KinxLanguageServer {
         return this.semanticCheck_[uri];
     }
 
-    private setSymbolInfo(uri: string, text: string, type: string) {
-        if (type === "public") {
+    private setSymbolInfo(uri: string, text: string, type: string, arglist: any) {
+        if (this.scope_.length > 0 && (type === "public" || type === "class")) {
             let scope = this.scope_[this.scope_.length - 1].name;
             this.methods_[uri][scope] ??= {}
-            this.methods_[uri][scope][text] = { kind: CompletionItemKind.Method };
+            this.methods_[uri][scope][text] = {
+                kind: CompletionItemKind.Method,
+                args: arglist.args
+            };
         } else {
-            this.symbols_[uri][text] = { kind: this.utils_.isUpperCase(text.charAt(0)) ? CompletionItemKind.Class : CompletionItemKind.Variable };
+            this.symbols_[uri][text] = {
+                kind: this.utils_.isUpperCase(text.charAt(0)) ? CompletionItemKind.Class : CompletionItemKind.Variable
+            };
         }
     }
 
@@ -364,9 +424,57 @@ class KinxLanguageServer {
      * @param message actual message.
      * @param srcbuf source code buffer.
      */
-    private checkLocation(uri: string, tokens: any, symbolmap: any, filename: string, dirname: string, message: string, srcbuf: string[]) {
+    private checkLocation(diagnostics: Diagnostic[], uri: string, tokens: any, symbolmap: any, filename: string, dirname: string, message: string, srcbuf: string[]) {
         // console.log(message);
-        let result = message.match(/#vartype\t([^\t]+)\t([^\t]+)/);
+        if (tokens.curCallInfo != null) {
+            if (message == "#callend") {
+                if (tokens.curCallInfo.finfo != null && tokens.curCallInfo.finfo.args != null) {
+                    this.utils_.checkTypeArray(diagnostics, tokens.curCallInfo.finfo.args, tokens.curCallInfo.args, tokens.curCallInfo.range);
+                }
+                tokens.curCallInfo = null;
+                return;
+            }
+            let result = message.match(/#callarg\t([0-9]+)\t([^\t]+)/);
+            if (result != null) {
+                let index = parseInt(result[1]);
+                tokens.curCallInfo.args[index] = result[2];
+            }
+            return;
+        }
+        let result = message.match(/#call\t([^\t]+)\t([^\t]+)\t(\d+)\t([^\t]+)\t(\d+)/);
+        if (result != null) {
+            var [scope, text] = result[1].split("#");
+            if (text == null) {
+                text = scope;
+                scope = "-";
+            }
+            tokens.curCallInfo = {
+                scope: scope,
+                text: text,
+                file1: result[2],
+                lineNumber1: parseInt(result[3]) - 1,
+                file2: result[4],
+                lineNumber2: parseInt(result[5]) - 1,
+                args: [],
+            };
+            let key = tokens.curCallInfo.text + ":" + tokens.curCallInfo.lineNumber2 + ":" + tokens.curCallInfo.file2;
+            if (scope === "-") {
+                tokens.curCallInfo.finfo = tokens.func[key];
+            } else {
+                if (this.methods_[uri] && this.methods_[uri][scope] && this.methods_[uri][scope][text]) {
+                    tokens.curCallInfo.finfo = this.methods_[uri][scope][text];
+                }
+            }
+            if (filename === tokens.curCallInfo.file1) {
+                let [start, end] = this.utils_.searchName(symbolmap, tokens.curCallInfo.text, srcbuf, tokens.curCallInfo.lineNumber1, false);
+                tokens.curCallInfo.range = {
+                    start: { line: tokens.curCallInfo.lineNumber1, character: start },
+                    end: { line: tokens.curCallInfo.lineNumber1, character: end }
+                };
+            }
+            return;
+        }
+        result = message.match(/#vartype\t([^\t]+)\t([^\t]+)/);
         if (result != null) {
             let varname = result[1];
             let typename = result[2];
@@ -401,7 +509,7 @@ class KinxLanguageServer {
             result = message.match(/#arg\t([0-9]+)\t([^\t]+)/);
             if (result != null) {
                 let index = parseInt(result[1]);
-                this.curArgs_.args[index] = { typename: result[2] };
+                this.curArgs_.args[index] = result[2];
             }
         }
         result = message.match(/#define\t(var|const|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+))?/);
@@ -411,10 +519,23 @@ class KinxLanguageServer {
             let file = result[3];
             let lineNumber = parseInt(result[4]) - 1;
             let typename = result[5];
-            this.setSymbolInfo(uri, text, result[1]);
             if (kind == "function") {
-                delete tokens.count[text+":"+lineNumber];
-                return;
+                let key = text+":"+lineNumber;
+                this.curArgs_.file = file;
+                this.curArgs_.line = lineNumber;
+                tokens.func[key+":"+file] = this.curArgs_;
+                this.setSymbolInfo(uri, text, result[1], this.curArgs_);
+                this.curArgs_ = null;
+                delete tokens.count[key];
+            } else if (kind == "class") {
+                let key = text+":"+lineNumber;
+                this.curArgs_.file = file;
+                this.curArgs_.line = lineNumber;
+                tokens.func[key+":"+file] = this.curArgs_;
+                this.setSymbolInfo(uri, text, result[1], this.curArgs_);
+                this.curArgs_ = null;
+            } else {
+                this.setSymbolInfo(uri, text, result[1], []);
             }
             if (filename === file) {
                 let [start, end] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber, true);
@@ -457,7 +578,7 @@ class KinxLanguageServer {
                 let [start1, end1] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber1, true);
                 if (kind === "keyname") {
                     let data = {
-                        kind: kind, text: text, typename: typename,
+                        kind: kind, text: text,
                         location: { uri: URI.file(filepath).toString(), range: {
                             start: { line: lineNumber1, character: start1 },
                             end: { line: lineNumber1, character: end1 } } }
@@ -515,7 +636,7 @@ class KinxLanguageServer {
      * @param src source code string
      */
     private compile(uri: string, diagnostics: Diagnostic[], url: string, src: string) {
-        let tokens: any = { ref: [], def: [], count: {} };
+        let tokens: any = { ref: [], def: [], count: {}, func: {} };
         this.symbols_[uri] = [];
         this.semanticCheck_[uri] = [];
         this.tokenBuffer_[uri] = tokens;
@@ -535,7 +656,7 @@ class KinxLanguageServer {
         for (let i = 0, l = msgbuf.length; i < l; ++i) {
             let errmsg = msgbuf[i];
             if (errmsg.length > 0 && errmsg.charAt(0) == '#') {
-                this.checkLocation(uri, tokens, symbolmap, filename, dirname, errmsg, srcbuf);
+                this.checkLocation(diagnostics, uri, tokens, symbolmap, filename, dirname, errmsg, srcbuf);
                 continue;
             }
             let result = errmsg.match(/Symbol\(([^\)]+)\).+?<([^>]+)>:(\d+)/);
@@ -592,6 +713,8 @@ class KinxLanguageServer {
             }
         }
 
+        // console.log(JSON.stringify(tokens.ref,undefined,4));
+        // console.log(JSON.stringify(this.methods_,undefined,4));
         connection.sendDiagnostics({ uri: doc.uri, diagnostics });
     }
 
@@ -615,6 +738,9 @@ class KinxLanguageServer {
         let character = position.character;
         for (let i = 0, l = locations.length; i < l; ++i) {
             let data = locations[i];
+            if (data.kind === "keyname") {
+                continue;
+            }
             let location = data.location;
             let range = location.range;
             if (range.start.line === line) {
@@ -642,39 +768,6 @@ class KinxLanguageServer {
             return info;
         }
         return this.getHoverInfoOf(this.tokenBuffer_[uri].def, position);
-    }
-
-    private getPreviousToken(srcline: string, end: number) {
-        let re = new RegExp("[$_a-zA-Z][$_a-zA-Z0-9]*", 'g');
-        let found;
-        while ((found = re.exec(srcline)) != null) {
-            let last = found.index + found[0].length;
-            if (last == end) {
-                return found[0];
-            }
-        }
-        return "";
-    }
-
-    private getTypenameOnDecl(uri: string, name: string, line: number) {
-        let index = -1;
-        let defs: any[] = this.tokenBuffer_[uri].def;
-        if (defs != null) {
-            for (let i = 0, l = defs.length; i < l; ++i) {
-                let data = defs[i];
-                if (data.text === name) {
-                    let range = data.location.range;
-                    if (index >= 0 && range.start.line > line) {
-                        break;
-                    }
-                    index = i;
-                }
-            }
-        }
-        if (index >= 0) {
-            return defs[index].typename;
-        }
-        return null;
     }
 
     private getCompletionCandidateByTypename(methods: any, uri: string, basetype: string) {
@@ -719,7 +812,7 @@ class KinxLanguageServer {
             ];
             break;
         case '.':
-            var token = this.getPreviousToken(srcline, position.character - 1);
+            var token = this.utils_.getPreviousToken(srcline, position.character - 1);
             let list: string[] | null = predefinedMethods.hasOwnProperty(token + ":Class") ? predefinedMethods[token + ":Class"] : null;
             if (list == null && this.methods_[uri] != null && this.methods_[uri].hasOwnProperty(token)) {
                 let scope = this.methods_[uri][token];
@@ -729,7 +822,7 @@ class KinxLanguageServer {
             }
             if (list == null) {
                 // Check the nearest declaration.
-                let typename = this.getTypenameOnDecl(uri, token, position.line);
+                let typename = this.utils_.getTypenameOnDecl(this.tokenBuffer_[uri].def, token, position.line);
                 if (typename != null) {
                     let methods: any = {};
                     this.getCompletionCandidateByTypename(methods, uri, typename);

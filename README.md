@@ -25,6 +25,8 @@ Now this product is under construction. It works with a debug mode only.
   * Run the script only with the range of selection.
 * Go to Definition
 * Auto completion
+* Hover Information
+* Argument Type Check
 
 ## Code Highlight
 
@@ -78,6 +80,22 @@ Auto completion is available.
 It suggests public methods collected from the class automatically, and it will also include methods on a base class.
 
 ![AutoComp](docs/images/autocomp.png)
+
+## Hover Information
+
+> Kinx version 0.21.0 or above is required.
+
+It will show a type in hover of a variable.
+
+## Argument Type Check
+
+> Kinx version 0.21.0 or above is required.
+
+Checking a type is available only when it is possible.
+Currently the following conditions are checked.
+
+* Arguments for a simple function call.
+* Arguments for a method call of a known class.
 
 # License
 
