@@ -157,7 +157,7 @@ class KinxUtility {
      * @param srcbuf source code buffer.
      * @param lineNumber line number of error.
      */
-    public searchName(symbolmap: any, text: string, srcbuf: string[], lineNumber: number, checkDup: boolean) {
+    public searchName(symbolmap: any, text: string, srcbuf: string[], lineNumber: number, checkDup: boolean, resetDup: boolean) {
         let srcline = srcbuf[lineNumber];
         if (srcline != null) {
             let line = srcline.replace(/"(\\"|[^"])+?"|'(\\'|[^'])+?'/g, (match) => {
@@ -172,10 +172,13 @@ class KinxUtility {
             let found;
             while ((found = re.exec(line)) != null) {
                 let index = found.index;
+                const key = text + ":" + lineNumber + ":" + index;
+                if (resetDup) {
+                    delete symbolmap[key];
+                }
                 if (!checkDup) {
                     return [index, index + text.length];
                 }
-                const key = text + ":" + lineNumber + ":" + index;
                 if (symbolmap[key] == null) {
                     symbolmap[key] = true;
                     return [index, index + text.length];
@@ -466,7 +469,7 @@ class KinxLanguageServer {
                 }
             }
             if (filename === tokens.curCallInfo.file1) {
-                let [start, end] = this.utils_.searchName(symbolmap, tokens.curCallInfo.text, srcbuf, tokens.curCallInfo.lineNumber1, false);
+                let [start, end] = this.utils_.searchName(symbolmap, tokens.curCallInfo.text, srcbuf, tokens.curCallInfo.lineNumber1, false, false);
                 tokens.curCallInfo.range = {
                     start: { line: tokens.curCallInfo.lineNumber1, character: start },
                     end: { line: tokens.curCallInfo.lineNumber1, character: end }
@@ -526,7 +529,6 @@ class KinxLanguageServer {
                 tokens.func[key+":"+file] = this.curArgs_;
                 this.setSymbolInfo(uri, text, result[1], this.curArgs_);
                 this.curArgs_ = null;
-                delete tokens.count[key];
             } else if (kind == "class") {
                 let key = text+":"+lineNumber;
                 this.curArgs_.file = file;
@@ -538,7 +540,7 @@ class KinxLanguageServer {
                 this.setSymbolInfo(uri, text, result[1], []);
             }
             if (filename === file) {
-                let [start, end] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber, true);
+                let [start, end] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber, true, true);
                 if (start >= 0 && end >= 0) {
                     let data = {
                         kind: kind, text: text, typename: typename,
@@ -549,7 +551,7 @@ class KinxLanguageServer {
                     tokens.def.push(data);
                     if (kind !== "class" && kind !== "const") {
                         tokens.count[text+":"+lineNumber] = {
-                            count: 0,
+                            count: kind == "function" ? 1 : 0,
                             data: data,
                         };
                     }
@@ -575,7 +577,7 @@ class KinxLanguageServer {
             let lineNumber1 = parseInt(result[4]) - 1;
             if (filename === file1) {
                 let typename = result[7];
-                let [start1, end1] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber1, true);
+                let [start1, end1] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber1, true, false);
                 if (kind === "keyname") {
                     let data = {
                         kind: kind, text: text,
@@ -590,7 +592,7 @@ class KinxLanguageServer {
                 let file2 = result[5];
                 let lineNumber2 = parseInt(result[6]) - 1;
                 if (filename === file2) {
-                    let [start2, end2] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber2, false);
+                    let [start2, end2] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber2, false, false);
                     if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                         let def = tokens.count[text+":"+lineNumber2];
                         let data = {
@@ -611,7 +613,7 @@ class KinxLanguageServer {
                     file2 = this.utils_.checkFilePath(dirname, file2);
                     let code = fs.readFileSync(file2, "utf8");
                     let codebuf = code.split(/\r?\n/);
-                    let [start2, end2] = this.utils_.searchName(symbolmap, text, codebuf, lineNumber2, false);
+                    let [start2, end2] = this.utils_.searchName(symbolmap, text, codebuf, lineNumber2, false, false);
                     if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                         let data = {
                             kind: kind, text: text, typename: typename,
@@ -713,7 +715,7 @@ class KinxLanguageServer {
             }
         }
 
-        // console.log(JSON.stringify(tokens.ref,undefined,4));
+        console.log(JSON.stringify(tokens.count,undefined,4));
         // console.log(JSON.stringify(this.methods_,undefined,4));
         connection.sendDiagnostics({ uri: doc.uri, diagnostics });
     }
@@ -748,7 +750,13 @@ class KinxLanguageServer {
                     let typename = data.typename != null ? data.typename : "Any";
                     if (data.text == typename) {
                         return {
-                            contents: { language: "kinx", value: "class " + typename },
+                            contents: { language: "kinx", value: "class " + data.text },
+                            range: range
+                        };
+                    }
+                    if (typename == "Function") {
+                        return {
+                            contents: { language: "kinx", value: "function " + data.text },
                             range: range
                         };
                     }
