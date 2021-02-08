@@ -419,6 +419,24 @@ class KinxLanguageServer {
         }
     }
 
+    private getMethodCandidate(uri: string, className: string, methodName: string) {
+        let types = [ className ];
+        while (types.length > 0) {
+            let typename: string | undefined = types.pop();
+            if (typename != null) {
+                if (this.methods_[uri] && this.methods_[uri][typename] && this.methods_[uri][typename][methodName]) {
+                    return this.methods_[uri][typename][methodName];
+                }
+                if (this.inheritMap_[uri].hasOwnProperty(typename)) {
+                    Object.keys(this.inheritMap_[uri][typename]).forEach((name: string) => {
+                        types.push(name);   // add inherit class name.
+                    });
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * Check the symbol location.
      * @param tokens result buffer.
@@ -464,9 +482,7 @@ class KinxLanguageServer {
             if (scope === "-") {
                 tokens.curCallInfo.finfo = tokens.func[key];
             } else {
-                if (this.methods_[uri] && this.methods_[uri][scope] && this.methods_[uri][scope][text]) {
-                    tokens.curCallInfo.finfo = this.methods_[uri][scope][text];
-                }
+                tokens.curCallInfo.finfo = this.getMethodCandidate(uri, scope, text);
             }
             if (filename === tokens.curCallInfo.file1) {
                 let [start, end] = this.utils_.searchName(symbolmap, tokens.curCallInfo.text, srcbuf, tokens.curCallInfo.lineNumber1, false, false);
@@ -715,7 +731,7 @@ class KinxLanguageServer {
             }
         }
 
-        console.log(JSON.stringify(tokens.count,undefined,4));
+        // console.log(JSON.stringify(tokens.count,undefined,4));
         // console.log(JSON.stringify(this.methods_,undefined,4));
         connection.sendDiagnostics({ uri: doc.uri, diagnostics });
     }
