@@ -404,19 +404,22 @@ class KinxLanguageServer {
         return this.semanticCheck_[uri];
     }
 
-    private setSymbolInfo(uri: string, text: string, type: string, arglist: any) {
+    private setSymbolInfo(uri: string, text: string, type: string, arglist: any, retTypename: string) {
         if (this.scope_.length > 0 && (type === "public" || type === "class")) {
             let scope = this.scope_[this.scope_.length - 1].name;
             this.methods_[uri][scope] ??= {}
             this.methods_[uri][scope][text] = {
                 kind: CompletionItemKind.Method,
-                args: arglist.args
+                args: arglist.args,
+                retTypename: retTypename
             };
-        } else {
-            this.symbols_[uri][text] = {
-                kind: this.utils_.isUpperCase(text.charAt(0)) ? CompletionItemKind.Class : CompletionItemKind.Variable
-            };
+            return this.methods_[uri][scope][text];
         }
+
+        this.symbols_[uri][text] = {
+            kind: this.utils_.isUpperCase(text.charAt(0)) ? CompletionItemKind.Class : CompletionItemKind.Variable
+        };
+        return null;
     }
 
     private getMethodCandidate(uri: string, className: string, methodName: string) {
@@ -469,13 +472,15 @@ class KinxLanguageServer {
                 text = scope;
                 scope = "-";
             }
+            let file2 = result[4];
+            let lineNumber2 = parseInt(result[5]) - 1;
             tokens.curCallInfo = {
                 scope: scope,
                 text: text,
                 file1: result[2],
                 lineNumber1: parseInt(result[3]) - 1,
-                file2: result[4],
-                lineNumber2: parseInt(result[5]) - 1,
+                file2: file2,
+                lineNumber2: lineNumber2,
                 args: [],
             };
             let key = tokens.curCallInfo.text + ":" + tokens.curCallInfo.lineNumber2 + ":" + tokens.curCallInfo.file2;
@@ -499,6 +504,32 @@ class KinxLanguageServer {
             let typename = result[2];
             this.varTypeMap_[uri][varname] ??= {};
             this.varTypeMap_[uri][varname][typename] = true;
+            return;
+        }
+        result = message.match(/#method\t([^\t]+)#([^\t]+)\t([^\t]+)\t(\d+)\t(\d+)\t(\d+)/);
+        if (result != null) {
+            this.getMethodCandidate(uri, scope, text)
+            let classname = result[1];
+            let methodname = result[2];
+            let file = result[3];
+            let line = parseInt(result[4]) - 1;;
+            let pos1 = parseInt(result[5]);
+            let pos2 = parseInt(result[6]);
+            let finfo = this.getMethodCandidate(uri, classname, methodname);
+            if (finfo) {
+                let filepath = path.join(dirname, file);
+                let data = {
+                    kind: "function", text: methodname, typename: "Function", retTypename: finfo.retTypename, argList: finfo.args,
+                    location: { uri: URI.file(filepath).toString(),
+                        range: {
+                            start: { line: line, character: pos1 },
+                            end: { line: line, character: pos2 }
+                        }
+                    },
+                    definition: finfo.definition
+                };
+                tokens.ref.push(data);
+            }
             return;
         }
         result = message.match(/#scope\t(start|end)\t(function|class)(?:\t([^\t]+))?/);
@@ -529,38 +560,51 @@ class KinxLanguageServer {
             if (result != null) {
                 let index = parseInt(result[1]);
                 this.curArgs_.args[index] = result[2];
+                return;
             }
         }
-        result = message.match(/#define\t(var|const|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+))?/);
+        result = message.match(/#define\t(var|const|class|module|function|public|private|native)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t(Function#|FunctionRef#)?([^\t]+))?/);
         if (result != null) {
-            let kind = this.utils_.getKindName(result[1]);
+            let kindbase = result[1];
+            let kind = this.utils_.getKindName(kindbase);
             let text = result[2];
             let file = result[3];
             let lineNumber = parseInt(result[4]) - 1;
-            let typename = result[5];
+            let isFunction = result[5] === "Function#";
+            let typename = isFunction ? "Function" : result[6];
+            let retTypename = isFunction ? result[6] : null;
+            let argList = { args: [] };
+            let symbolinfo = null;
             if (kind == "function") {
                 let key = text+":"+lineNumber;
                 this.curArgs_.file = file;
                 this.curArgs_.line = lineNumber;
-                tokens.func[key+":"+file] = this.curArgs_;
-                this.setSymbolInfo(uri, text, result[1], this.curArgs_);
+                tokens.func[key+":"+file] = argList = this.curArgs_;
+                symbolinfo = this.setSymbolInfo(uri, text, kindbase, this.curArgs_, retTypename ?? "Any");
                 this.curArgs_ = null;
             } else if (kind == "class") {
                 let key = text+":"+lineNumber;
                 this.curArgs_.file = file;
                 this.curArgs_.line = lineNumber;
-                tokens.func[key+":"+file] = this.curArgs_;
-                this.setSymbolInfo(uri, text, result[1], this.curArgs_);
+                tokens.func[key+":"+file] = argList = this.curArgs_;
+                this.setSymbolInfo(uri, text, kindbase, this.curArgs_, text);
                 this.curArgs_ = null;
             } else {
-                this.setSymbolInfo(uri, text, result[1], []);
+                this.setSymbolInfo(uri, text, kindbase, [], retTypename ?? "Any");
+            }
+            if (kindbase == "public" && tokens.def.length > 0) {
+                let prev = tokens.def[tokens.def.length - 1];
+                if (prev && prev.kind === "variable" && prev.text === text) {
+                    tokens.def.pop();
+                }
             }
             if (filename === file) {
                 let [start, end] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber, true, true);
                 if (start >= 0 && end >= 0) {
+                    let filepath = path.join(dirname, filename);
                     let data = {
-                        kind: kind, text: text, typename: typename,
-                        location: { uri: URI.file(filename).toString(), range: {
+                        kind: kind, text: text, typename: typename, retTypename: retTypename, argList: argList.args,
+                        location: { uri: URI.file(filepath).toString(), range: {
                             start: { line: lineNumber, character: start },
                             end: { line: lineNumber, character: end } } }
                     };
@@ -575,8 +619,22 @@ class KinxLanguageServer {
                         this.inheritMap_[uri][text] ??= {};
                         this.inheritMap_[uri][text][typename] = true;
                     }
+                    if (symbolinfo != null) {
+                        symbolinfo.definition = data.location;
+                    }
                 }
             } else {
+                if (symbolinfo != null) {
+                    let file2 = this.utils_.checkFilePath(dirname, file);
+                    let code = fs.readFileSync(file2, "utf8");
+                    let codebuf = code.split(/\r?\n/);
+                    let [start2, end2] = this.utils_.searchName(symbolmap, text, codebuf, lineNumber, false, false);
+                    if (start2 >= 0 && end2 >= 0) {
+                        symbolinfo.definition = { uri: URI.file(file2).toString(), range: {
+                            start: { line: lineNumber, character: start2 },
+                            end: { line: lineNumber, character: end2 } } };
+                    }
+                }
                 if (kind === "class" && typename !== "") {
                     this.inheritMap_[uri][text] ??= {};
                     this.inheritMap_[uri][text][typename] = true;
@@ -584,7 +642,7 @@ class KinxLanguageServer {
             }
             return;
         }
-        result = message.match(/#ref\t(var|key)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+)\t(\d+)(?:\t([^\t]+))?)?/);
+        result = message.match(/#ref\t(var|key)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+)\t(\d+))?(?:\t(Function#)?([^\t]+))?/);
         if (result != null) {
             let filepath = path.join(dirname, filename);
             let kind = result[1] === "var" ? "variable" : "keyname";
@@ -592,7 +650,9 @@ class KinxLanguageServer {
             let file1 = result[3];
             let lineNumber1 = parseInt(result[4]) - 1;
             if (filename === file1) {
-                let typename = result[7];
+                let isFunction = result[7] === "Function#";
+                let typename = isFunction ? "Function" : result[8];
+                let retTypename = isFunction ? result[8] : null;
                 let [start1, end1] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber1, true, false);
                 if (kind === "keyname") {
                     let data = {
@@ -604,15 +664,16 @@ class KinxLanguageServer {
                     tokens.ref.push(data);
                     return;
                 }
-
                 let file2 = result[5];
                 let lineNumber2 = parseInt(result[6]) - 1;
+                let key = text + ":" + lineNumber2 + ":" + file2;
+                let argList = tokens.func[key] != null ? tokens.func[key] : { args: [] };
                 if (filename === file2) {
                     let [start2, end2] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber2, false, false);
                     if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                         let def = tokens.count[text+":"+lineNumber2];
                         let data = {
-                            kind: kind, text: text, typename: typename,
+                            kind: kind, text: text, typename: typename, retTypename: retTypename, argList: argList.args,
                             location: { uri: URI.file(filepath).toString(), range: {
                                 start: { line: lineNumber1, character: start1 },
                                 end: { line: lineNumber1, character: end1 } } },
@@ -632,7 +693,7 @@ class KinxLanguageServer {
                     let [start2, end2] = this.utils_.searchName(symbolmap, text, codebuf, lineNumber2, false, false);
                     if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                         let data = {
-                            kind: kind, text: text, typename: typename,
+                            kind: kind, text: text, typename: typename, retTypename: retTypename, argList: argList.args,
                             location: { uri: URI.file(filepath).toString(), range: {
                                 start: { line: lineNumber1, character: start1 },
                                 end: { line: lineNumber1, character: end1 } } },
@@ -733,6 +794,7 @@ class KinxLanguageServer {
 
         // console.log(JSON.stringify(tokens.count,undefined,4));
         // console.log(JSON.stringify(this.methods_,undefined,4));
+        // console.log(JSON.stringify(tokens.ref,undefined,4));
         connection.sendDiagnostics({ uri: doc.uri, diagnostics });
     }
 
@@ -751,7 +813,7 @@ class KinxLanguageServer {
         }
     }
 
-    private getHoverInfoOf(locations: any[], position: Position) {
+    private getHoverInfoOf(uri: string, locations: any[], position: Position) {
         let line = position.line;
         let character = position.character;
         for (let i = 0, l = locations.length; i < l; ++i) {
@@ -765,33 +827,42 @@ class KinxLanguageServer {
                 if (range.start.character <= character && character <= range.end.character && data.text != null) {
                     let typename = data.typename != null ? data.typename : "Any";
                     if (data.text == typename) {
-                        return {
-                            contents: { language: "kinx", value: "class " + data.text },
+                        let finfo = this.getMethodCandidate(uri, typename, typename);
+                        let args = finfo ? (finfo.args ?? []) : [];
+                        return [typename, null, {
+                            contents: { language: "kinx", value: "class " + data.text + "(" + args.join(", ") + ")"},
                             range: range
-                        };
+                        }];
                     }
                     if (typename == "Function") {
-                        return {
-                            contents: { language: "kinx", value: "function " + data.text },
+                        let args = data.argList || [];
+                        let retTypename = data.retTypename || "Any";
+                        return [typename, args, {
+                            contents: { language: "kinx", value: "function " + data.text + "(" + args.join(", ") + ") : " + retTypename},
                             range: range
-                        };
+                        }];
                     }
-                    return {
+                    return [typename, null, {
                         contents: { language: "kinx", value: data.text + " as " + typename },
                         range: range
-                    };
+                    }];
                 }
             }
         }
-        return undefined;
+        return [undefined, undefined, undefined];
     }
 
     public getHoverInfo(uri: string, position: Position) {
-        let info = this.getHoverInfoOf(this.tokenBuffer_[uri].ref, position);
-        if (info != null) {
-            return info;
+        let [t1, a1, info] = this.getHoverInfoOf(uri, this.tokenBuffer_[uri].ref, position);
+        if (info == null || t1 === "Function") {
+            let [t2, a2, c2] = this.getHoverInfoOf(uri, this.tokenBuffer_[uri].def, position);
+            if (info == null) {
+                info = c2;
+            } else if (t2 === "Function" && a1.length < a2.length) {
+                info = c2;
+            }
         }
-        return this.getHoverInfoOf(this.tokenBuffer_[uri].def, position);
+        return info;
     }
 
     private getCompletionCandidateByTypename(methods: any, uri: string, basetype: string) {
