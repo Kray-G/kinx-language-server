@@ -96,11 +96,11 @@ Here is the example of hover.
 > Kinx version 0.21.0 or above is required.
 
 Checking a type is available only when it is possible.
-Currently the following conditions are checked.
-
 Here is the example of hover and type check.
 
 ![TypeCheck](docs/images/typecheck.png)
+
+Currently the following conditions are checked.
 
 ### Argument Type Check
 
