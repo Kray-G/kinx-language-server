@@ -27,7 +27,7 @@ Now this product is under construction. It works with a debug mode only.
 * Go to Definition
 * Auto completion
 * Hover Information     ***(0.21.0 or above)***
-* Argument Type Check   ***(0.21.0 or above)***
+* Type Check   ***(0.21.0 or above)***
 
 ## Code Highlight
 
@@ -87,16 +87,29 @@ It suggests public methods collected from the class automatically, and it will a
 > Kinx version 0.21.0 or above is required.
 
 It will show a type in hover of a variable.
+Here is the example of hover.
 
-## Argument Type Check
+![Hover](docs/images/hover.png)
+
+## Type Check
 
 > Kinx version 0.21.0 or above is required.
 
 Checking a type is available only when it is possible.
 Currently the following conditions are checked.
 
+Here is the example of hover and type check.
+
+![TypeCheck](docs/images/typecheck.png)
+
+### Argument Type Check
+
 * Arguments for a simple function call.
 * Arguments for a method call of a known class.
+
+### Assignment Type Check
+
+* Error if there is a type mismatch between LHS and RHS.
 
 # License
 
