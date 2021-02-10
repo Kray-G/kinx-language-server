@@ -857,7 +857,7 @@ class KinxLanguageServer {
                         }];
                     }
                     if (typename == "Function") {
-                        let functype = data.kindbase !== "" ? data.kindbase : "function";
+                        let functype = data.kindbase == null ? "function" : data.kindbase;
                         let args = data.argList || [];
                         let retTypename = data.retTypename || "Any";
                         return [typename, args, {
