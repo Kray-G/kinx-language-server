@@ -189,11 +189,14 @@ class KinxUtility {
     }
 
     public checkTypeArray(diagnostics: Diagnostic[], defs: string[], refs: string[], range: Range) {
+        if (range == null) {
+            return;
+        }
         let len1 = defs.length;
         let len2 = refs.length;
         let len = len1 < len2 ? len1 : len2;
         for (let i = 0; i < len; ++i) {
-            if (defs[i] === "-" || defs[i] === "any" || refs[i] === "-" || refs[i] === "any") {
+            if (defs[i] === "-" || defs[i] === "Any" || refs[i] === "-" || refs[i] === "Any") {
                 continue;
             }
             if (defs[i] != refs[i]) {
@@ -208,7 +211,6 @@ class KinxUtility {
                 diagnostics.push(diagnostic);
             }
         }
-        return true;
     }
 
     /**
@@ -272,19 +274,34 @@ class KinxDiagnosticsChecker {
      */
     public normalCheck(diagnostics: Diagnostic[], lineNumber: number, srcbuf: string[], errmsg: string) {
         if (srcbuf.length <= lineNumber) lineNumber = srcbuf.length - 1;
-        let start = 0, linelen = 1;
+        let start = 0, end = -1;
         let srcline = srcbuf[lineNumber];
         if (srcline != null) {
-            linelen = srcline.length;
-            let re = new RegExp("[^\\s]");
-            let result = re.exec(srcline);
-            if (result != null) {
-                start = result.index;
+            let chkvar = new RegExp("\\s+for\\s+\\(([^\\)]+)\\)");
+            let resvar = chkvar.exec(errmsg);
+            if (resvar != null) {
+                let varname = resvar[1];
+                let index = srcline.indexOf(varname);
+                if (index >= 0) {
+                    start = index;
+                    end = start + varname.length;
+                }
             }
+            if (end < 0) {
+                end = srcline.length;
+                let re = new RegExp("[^\\s]");
+                let result = re.exec(srcline);
+                if (result != null) {
+                    start = result.index;
+                }
+            }
+        }
+        if (end < 0) {
+            end = 1;
         }
         const range: Range = {
             start: { line: lineNumber, character: start < 0 ? 0 : start },
-            end: { line: lineNumber, character: linelen },
+            end: { line: lineNumber, character: end },
         };
         const diagnostic: Diagnostic = Diagnostic.create(
             range,
@@ -739,7 +756,7 @@ class KinxLanguageServer {
                 this.checkLocation(diagnostics, uri, tokens, symbolmap, filename, dirname, errmsg, srcbuf);
                 continue;
             }
-            let result = errmsg.match(/Symbol\(([^\)]+)\).+?<([^>]+)>:(\d+)/);
+            let result = errmsg.match(/(?:Symbol|Type)\(([^\)]+)\).+?<([^>]+)>:(\d+)/);
             if (result == null) {
                 result = errmsg.match(/.+?<([^>]+)>:(\d+)/);
                 if (result != null) {
@@ -796,6 +813,7 @@ class KinxLanguageServer {
         // console.log(JSON.stringify(tokens.count,undefined,4));
         // console.log(JSON.stringify(this.methods_,undefined,4));
         // console.log(JSON.stringify(tokens.ref,undefined,4));
+        // console.log(JSON.stringify(diagnostics,undefined,4));
         connection.sendDiagnostics({ uri: doc.uri, diagnostics });
     }
 
