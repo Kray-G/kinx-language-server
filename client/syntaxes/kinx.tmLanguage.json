@@ -146,10 +146,6 @@
 				{
 					"name": "constant.numeric",
 					"match": "[-+]?0[xX][0-9a-fA-F]+"
-				},
-				{
-					"name": "constant.numeric",
-					"match": ":[_a-zA-Z][_a-zA-Z0-9]*"
 				}
 			]
 		},
