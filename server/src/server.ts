@@ -405,12 +405,13 @@ class KinxLanguageServer {
     }
 
     private setSymbolInfo(uri: string, text: string, type: string, arglist: any, retTypename: string) {
+        let args = Array.isArray(arglist.args) ? arglist.args.map((e: string) => e === '-' ? "Any" : e) : [];
         if (this.scope_.length > 0 && (type === "public" || type === "class")) {
             let scope = this.scope_[this.scope_.length - 1].name;
             this.methods_[uri][scope] ??= {}
             this.methods_[uri][scope][text] = {
                 kind: CompletionItemKind.Method,
-                args: arglist.args,
+                args: args,
                 retTypename: retTypename
             };
             return this.methods_[uri][scope][text];
@@ -559,7 +560,7 @@ class KinxLanguageServer {
             result = message.match(/#arg\t([0-9]+)\t([^\t]+)/);
             if (result != null) {
                 let index = parseInt(result[1]);
-                this.curArgs_.args[index] = result[2];
+                this.curArgs_.args[index] = (result[2] === '-') ? "Any" : result[2];
                 return;
             }
         }
