@@ -621,6 +621,7 @@ class KinxLanguageServer {
                 if (start >= 0 && end >= 0) {
                     let filepath = path.join(dirname, filename);
                     let data = {
+                        kindbase: kindbase,
                         kind: kind, text: text, typename: typename, retTypename: retTypename, argList: argList.args,
                         location: { uri: URI.file(filepath).toString(), range: {
                             start: { line: lineNumber, character: start },
@@ -660,7 +661,7 @@ class KinxLanguageServer {
             }
             return;
         }
-        result = message.match(/#ref\t(var|key)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+)\t(\d+))?(?:\t(Function#)?([^\t]+))?/);
+        result = message.match(/#ref\t(var|key)\t([^\t]+)\t([^\t]+)\t(\d+)(?:\t([^\t]+)\t(\d+))?(?:\t(Function#|Native#)?([^\t]+))?/);
         if (result != null) {
             let filepath = path.join(dirname, filename);
             let kind = result[1] === "var" ? "variable" : "keyname";
@@ -669,8 +670,9 @@ class KinxLanguageServer {
             let lineNumber1 = parseInt(result[4]) - 1;
             if (filename === file1) {
                 let isFunction = result[7] === "Function#";
-                let typename = isFunction ? "Function" : result[8];
-                let retTypename = isFunction ? result[8] : null;
+                let isNative = result[7] === "Native#";
+                let typename = (isFunction || isNative) ? "Function" : result[8];
+                let retTypename = (isFunction || isNative) ? result[8] : null;
                 let [start1, end1] = this.utils_.searchName(symbolmap, text, srcbuf, lineNumber1, true, false);
                 if (kind === "keyname") {
                     let data = {
@@ -691,6 +693,7 @@ class KinxLanguageServer {
                     if (start1 >= 0 && end1 >= 0 && start2 >= 0 && end2 >= 0) {
                         let def = tokens.count[text+":"+lineNumber2];
                         let data = {
+                            kindbase: isNative ? "native" : (isFunction ? "function" : ""),
                             kind: kind, text: text, typename: typename, retTypename: retTypename, argList: argList.args,
                             location: { uri: URI.file(filepath).toString(), range: {
                                 start: { line: lineNumber1, character: start1 },
@@ -854,10 +857,11 @@ class KinxLanguageServer {
                         }];
                     }
                     if (typename == "Function") {
+                        let functype = data.kindbase !== "" ? data.kindbase : "function";
                         let args = data.argList || [];
                         let retTypename = data.retTypename || "Any";
                         return [typename, args, {
-                            contents: { language: "kinx", value: "function " + data.text + "(" + args.join(", ") + ") : " + retTypename},
+                            contents: { language: "kinx", value: functype + " " + data.text + "(" + args.join(", ") + ") : " + retTypename},
                             range: range
                         }];
                     }
