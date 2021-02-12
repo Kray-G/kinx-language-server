@@ -426,15 +426,16 @@ class KinxLanguageServer {
         if (this.scope_.length > 0 && (type === "public" || type === "class")) {
             let scope = this.scope_[this.scope_.length - 1].name;
             this.methods_[uri][scope] ??= {}
-            this.methods_[uri][scope][text] = {
+            this.methods_[uri][scope][':'+text] = {
                 kind: CompletionItemKind.Method,
                 args: args,
                 retTypename: retTypename
             };
-            return this.methods_[uri][scope][text];
+            return this.methods_[uri][scope][':'+text];
         }
 
-        this.symbols_[uri][text] = {
+        this.symbols_[uri][':'+text] ??= {}
+        this.symbols_[uri][':'+text] = {
             kind: this.utils_.isUpperCase(text.charAt(0)) ? CompletionItemKind.Class : CompletionItemKind.Variable
         };
         return null;
@@ -445,8 +446,8 @@ class KinxLanguageServer {
         while (types.length > 0) {
             let typename: string | undefined = types.pop();
             if (typename != null) {
-                if (this.methods_[uri] && this.methods_[uri][typename] && this.methods_[uri][typename][methodName]) {
-                    return this.methods_[uri][typename][methodName];
+                if (this.methods_[uri] && this.methods_[uri][typename] && this.methods_[uri][typename][':'+methodName]) {
+                    return this.methods_[uri][typename][':'+methodName];
                 }
                 if (this.inheritMap_[uri].hasOwnProperty(typename)) {
                     Object.keys(this.inheritMap_[uri][typename]).forEach((name: string) => {
@@ -780,10 +781,12 @@ class KinxLanguageServer {
             }
         }
 
-        this.symbols_[uri] = Object.keys(this.symbols_[uri]).map((name: string) => ({
-            name: name,
-            kind: this.symbols_[uri][name].kind,
-        }));
+        this.symbols_[uri] = Object.keys(this.symbols_[uri]).map((name: string) => {
+            return {
+                name: name.substring(1),
+                kind: this.symbols_[uri][name].kind,
+            };
+        });
 
         return tokens;
     }
@@ -900,7 +903,7 @@ class KinxLanguageServer {
                 }
                 if (this.methods_[uri].hasOwnProperty(typename)) {
                     Object.keys(this.methods_[uri][typename]).forEach((method: string) => {
-                        methods[method] = true;
+                        methods[method.substring(1)] = true;
                     });
                 }
                 if (predefinedMethods.hasOwnProperty(typename)) {
