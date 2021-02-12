@@ -977,7 +977,8 @@ class KinxLanguageServer {
                 kind: CompletionItemKind.Keyword,
                 data: ++index,
             }));
-            candidates.concat(this.symbols_[uri].map((el: any) => ({
+            var tokenx = this.utils_.getPreviousToken(srcline, position.character).toLowerCase();
+            candidates = candidates.concat(this.symbols_[uri].filter((el: any) => el.name.toLowerCase() !== tokenx).map((el: any) => ({
                 label: el.name,
                 kind: el.kind,
                 data: ++index,
