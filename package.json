@@ -6,7 +6,7 @@
     "publisher": "Kray-G",
     "license": "MIT",
     "icon": "client/images/kinx.png",
-    "description": "Kinx Language Server Extension",
+    "description": "Kinx VSCode Extension with Language Server",
     "repository": {
         "type": "git",
         "url": "https://github.com/Kray-G/kinx-language-server"
