@@ -751,7 +751,7 @@ class KinxLanguageServer {
 
         const symbolmap: any = {};
         let [filename, dirname, fileopt, diropt] = this.utils_.setOptions(url);
-        const buf = childProcess.execSync('"' + kinxExePath + '" -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 10000, input: src + '\n__END__' });
+        const buf = childProcess.execSync('"' + kinxExePath + '" -ic --output-location --error-code=0 ' + fileopt + ' ' + diropt, { timeout: 1000, input: src + '\n__END__' });
         const msgs = buf.toString();
         const msgbuf = msgs.split(/\r?\n/);
         for (let i = 0, l = msgbuf.length; i < l; ++i) {

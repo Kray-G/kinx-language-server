@@ -6,6 +6,16 @@ import { ExtensionContext, window as Window, commands as Commands, OutputChannel
 import { LanguageClient, LanguageClientOptions, RevealOutputChannelOn, ServerOptions, TransportKind } from "vscode-languageclient";
 let client: LanguageClient;
 let outputChannel: OutputChannel;
+let cp: child_process.ChildProcess | null;
+let isWin = /^win/.test(process.platform);
+
+function killProcess(proc: child_process.ChildProcess) {
+    if (isWin) {
+        child_process.exec('taskkill /PID ' + proc.pid + ' /T /F');
+    } else {
+        proc.kill('SIGTERM');
+    }
+}
 
 function runKinx(outputChannel: OutputChannel, filename: string, text: string, value: string) {
     let settings = Workspace.getConfiguration("kinx");
@@ -15,7 +25,7 @@ function runKinx(outputChannel: OutputChannel, filename: string, text: string, v
     let dirname = path.dirname(filename);
     let orgdir = process.cwd();
     process.chdir(dirname);
-    let kinx = child_process.exec('"' + exepath + '" -i kinx ' + value, (_error, stdout, stderr) => {
+    cp = child_process.exec('"' + exepath + '" -i kinx ' + value, (_error, stdout, stderr) => {
         if (stdout) {
             outputChannel.appendLine(stdout);
         }
@@ -23,15 +33,26 @@ function runKinx(outputChannel: OutputChannel, filename: string, text: string, v
             outputChannel.appendLine(stderr);
         }
     });
+    cp.on("close", (_code) => {
+        cp = null;
+    });
     let srccode = "var tmr = new SystemTimer(); try { " + text + " } finally { System.println('----\nelapsed: %f' % tmr.elapsed()); }\n__END__";
-    kinx.stdin?.write(srccode);
-    kinx.stdin?.end();
+    cp.stdin?.write(srccode);
+    cp.stdin?.end();
     process.chdir(orgdir);
 }
 
 function runKinxHook(filename: string, text: string, args: string, mode: string) {
     if (outputChannel == null) {
         outputChannel = Window.createOutputChannel("Kinx Output");
+    }
+    if (cp != null) {
+        killProcess(cp);
+        setTimeout(function() {
+            outputChannel.appendLine("* Previous process is still running, terminate it and try to run again.");
+            runKinxHook(filename, text, args, mode);
+        }, 500);
+        return;
     }
     outputChannel.show(true);
     outputChannel.appendLine("[" + mode + "] Started at " + new Date(Date.now()).toString());
