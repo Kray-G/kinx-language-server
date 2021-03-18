@@ -1,7 +1,7 @@
 {
     "name": "kinx-language-server",
-    "displayName": "Kinx Language Server Extension",
-    "version": "0.0.1",
+    "displayName": "Kinx Language Server VSCode Extension",
+    "version": "0.0.2",
     "author": "Kray-G",
     "publisher": "Kray-G",
     "license": "MIT",

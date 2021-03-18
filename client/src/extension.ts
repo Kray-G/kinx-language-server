@@ -49,7 +49,7 @@ function runKinxHook(filename: string, text: string, args: string, mode: string)
     if (cp != null) {
         killProcess(cp);
         setTimeout(function() {
-            outputChannel.appendLine("* Previous process is still running, terminate it and try to run again.");
+            outputChannel.appendLine("* The previous process is still running. Please wait for trying to terminate and run it again.");
             runKinxHook(filename, text, args, mode);
         }, 500);
         return;
